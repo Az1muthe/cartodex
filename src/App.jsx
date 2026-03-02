@@ -198,17 +198,17 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 .imp-info strong{color:var(--text2)}
 .imp-sel-bar{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}
 .imp-sel-ct{font-size:.72rem;color:var(--muted);margin-left:auto}
-.imp-preview{display:grid;grid-template-columns:repeat(auto-fill,minmax(58px,1fr));
-  gap:6px;margin-bottom:14px;max-height:260px;overflow-y:auto;padding-right:2px}
+.imp-preview{display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));
+  gap:8px;margin-bottom:14px;max-height:340px;overflow-y:auto;padding-right:2px}
 .imp-thumb{border-radius:6px;overflow:hidden;border:2px solid var(--border);
   aspect-ratio:2.5/3.5;background:var(--surface2);position:relative;cursor:pointer;
   transition:border-color .15s}
 .imp-thumb img{width:100%;height:100%;object-fit:cover;display:block;transition:filter .2s}
 .imp-thumb:not(.sel) img{filter:brightness(.55) grayscale(.3)}
 .imp-thumb.sel{border-color:var(--red2)}
-.imp-thumb-chk{position:absolute;top:3px;right:3px;width:16px;height:16px;border-radius:4px;
-  background:rgba(0,0,0,.5);border:1.5px solid rgba(255,255,255,.4);
-  display:flex;align-items:center;justify-content:center;font-size:.55rem;font-weight:900;color:#fff;transition:all .15s}
+.imp-thumb-chk{position:absolute;top:4px;right:4px;width:22px;height:22px;border-radius:5px;
+  background:rgba(0,0,0,.6);border:2px solid rgba(255,255,255,.5);
+  display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:900;color:#fff;transition:all .15s}
 .imp-thumb.sel .imp-thumb-chk{background:var(--red2);border-color:var(--red2)}
 .imp-thumb.sel .imp-thumb-chk::after{content:'✓'}
 .spinner-wrap{display:flex;align-items:center;gap:10px;padding:20px;
@@ -329,22 +329,25 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 .browse-in-col{position:absolute;top:6px;right:6px;z-index:4;width:20px;height:20px;
   border-radius:50%;background:var(--green);color:#fff;display:flex;align-items:center;
   justify-content:center;font-size:.6rem;font-weight:900;box-shadow:0 2px 7px rgba(0,0,0,.5)}
-.browse-chk{position:absolute;top:6px;left:6px;z-index:4;width:20px;height:20px;border-radius:5px;
-  border:2px solid rgba(255,255,255,.5);background:rgba(0,0,0,.5);
+.browse-chk{position:absolute;top:7px;left:7px;z-index:4;width:30px;height:30px;border-radius:8px;
+  border:2.5px solid rgba(255,255,255,.6);background:rgba(0,0,0,.55);
   display:flex;align-items:center;justify-content:center;transition:all .15s;
-  opacity:0;pointer-events:none}
+  opacity:0;pointer-events:none;backdrop-filter:blur(2px)}
 .browse-card:hover .browse-chk,.browse-card.sel .browse-chk{opacity:1}
 .browse-card.sel .browse-chk{background:var(--red2);border-color:var(--red2)}
-.browse-card.sel .browse-chk::after{content:'✓';color:#fff;font-size:.6rem;font-weight:900}
-.browse-add-btn{position:absolute;inset:0;z-index:3;display:flex;align-items:flex-end;
-  justify-content:center;padding-bottom:10px;
-  background:linear-gradient(to top,rgba(14,12,16,.9) 0%,transparent 55%);
-  opacity:0;transition:opacity .2s;border:none;cursor:pointer;pointer-events:none}
-.browse-card:hover .browse-add-btn{opacity:1;pointer-events:all}
-.browse-add-inner{display:flex;gap:5px;align-items:center;
+.browse-card.sel .browse-chk::after{content:'✓';color:#fff;font-size:.8rem;font-weight:900}
+.browse-hover-overlay{position:absolute;inset:0;z-index:2;pointer-events:none;
+  background:linear-gradient(to top,rgba(14,12,16,.92) 0%,transparent 52%);
+  opacity:0;transition:opacity .2s;border-radius:inherit}
+.browse-card:hover .browse-hover-overlay{opacity:1}
+.browse-add-btn{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);
+  z-index:3;width:68%;border:none;cursor:pointer;pointer-events:none;
   background:linear-gradient(135deg,var(--red),var(--orange));color:#fff;
-  font-family:'Outfit',sans-serif;font-size:.7rem;font-weight:700;
-  padding:5px 12px;border-radius:99px;box-shadow:0 2px 10px rgba(0,0,0,.5)}
+  font-family:'Outfit',sans-serif;font-size:.72rem;font-weight:700;
+  padding:7px 0;border-radius:99px;box-shadow:0 3px 14px rgba(0,0,0,.6);
+  opacity:0;transition:opacity .2s,transform .2s;white-space:nowrap;text-align:center}
+.browse-card:hover .browse-add-btn{opacity:1;pointer-events:all;transform:translateX(-50%) translateY(-1px)}
+.browse-add-inner{display:flex;gap:5px;align-items:center;justify-content:center}
 
 /* ── ZOOM MODAL ── */
 .zoom-overlay{display:none;position:fixed;inset:0;z-index:700;
@@ -692,7 +695,7 @@ function ResetPasswordPage({ onDone }) {
 }
 
 // ─── COLLECTION PAGE ──────────────────────────────────────────────────────────
-function CollectionPage({ collection, allCollections, onUpdate, onAddToCollection, showToast }) {
+function CollectionPage({ collection, allCollections, onUpdate, onAddToCollection, showToast, isDirty, isSaving, onSave }) {
   const cards = collection?.cards || [];
   const [layout, setLayout] = useState('g6');
   const [filter, setFilter] = useState('all');
@@ -837,7 +840,7 @@ function CollectionPage({ collection, allCollections, onUpdate, onAddToCollectio
   const total = cards.length, obtained = cards.filter(c => c.obtained).length;
   const pct = total === 0 ? 0 : Math.round((obtained / total) * 100);
   const visible = filter === 'obtained' ? cards.filter(c => c.obtained) : filter === 'missing' ? cards.filter(c => !c.obtained) : cards;
-  const layouts = [{ id: 'g6', icon: '⋮⋮⋮' }, { id: 'g4', icon: '⊞' }, { id: 'g3', icon: '▦' }, { id: 'g2', icon: '◫' }, { id: 'glist', icon: '☰' }];
+  const layouts = [{ id: 'g6', icon: '⋮⋮⋮', label:'Grille' }, { id: 'g3', icon: '▦', label:'3×3' }, { id: 'glist', icon: '☰', label:'Liste' }];
   const filters = [{ id: 'all', label: 'Toutes' }, { id: 'obtained', label: 'Obtenues' }, { id: 'missing', label: 'Manquantes' }];
 
   if (!collection) return <div className="empty"><span className="empty-icon">📋</span><h3>Aucune collection</h3><p>Créez une collection dans le menu de gauche.</p></div>;
@@ -848,6 +851,12 @@ function CollectionPage({ collection, allCollections, onUpdate, onAddToCollectio
         <div className="page-title"><span>{collection.name}</span></div>
         <div className="page-hdr-actions">
           <input ref={fileRef} type="file" multiple accept="image/*" style={{ display: 'none' }} onChange={e => { handleFiles(e.target.files); e.target.value = ''; }} />
+          {isDirty && (
+            <button className="btn btn-red" onClick={onSave} disabled={isSaving}
+              style={{ gap: 6 }}>
+              {isSaving ? <><div className="spinner" style={{width:12,height:12,borderWidth:2}} />Sauvegarde…</> : '💾 Sauvegarder'}
+            </button>
+          )}
           <button className="btn" onClick={() => fileRef.current?.click()}>＋ Ajouter</button>
           <button className={`btn btn-sm${selMode ? ' btn-red' : ''}`} onClick={() => setSelMode(v => !v)}>
             {selMode ? '✕ Quitter sélection' : '☑ Sélectionner'}
@@ -1173,15 +1182,19 @@ function BrowsePage({ allCollections, onAddToCollection, showToast }) {
               <div key={c.id} className={`browse-card${isSel ? ' sel' : ''}`}
                 style={{ animationDelay: `${Math.min(i * .016, .4)}s` }}
                 onClick={() => setZoomCard({ ...c, series: selSet?.name })}>
-                <div className="card-img-box">
+                <div className="card-img-box" style={{ position:'relative' }}>
                   {c.image
                     ? <img className="card-img" src={`${c.image}/high.webp`} alt={c.name} loading="lazy" style={{ filter: 'none' }} />
                     : <div style={{ width: '100%', height: '100%', background: 'var(--surface2)' }} />
                   }
-                  {/* ✓ badge: indicates "in at least one collection" but doesn't block adding */}
+                  {/* overlay gradient - purely visual, no pointer events */}
+                  <div className="browse-hover-overlay" />
+                  {/* ✓ badge */}
                   {inCol && <div className="browse-in-col" title="Dans une collection">✓</div>}
-                  <div className="browse-chk" onClick={e => { e.stopPropagation(); toggleBrowseSel(c.id); }} style={{ pointerEvents: 'all' }} />
-                  {/* Add button always available */}
+                  {/* Checkbox multi-sélection */}
+                  <div className="browse-chk" style={{ pointerEvents: 'all' }}
+                    onClick={e => { e.stopPropagation(); toggleBrowseSel(c.id); }} />
+                  {/* Bouton Ajouter - seulement la pill est clickable */}
                   <button className="browse-add-btn" onClick={e => { e.stopPropagation(); handleAdd([c]); }}>
                     <div className="browse-add-inner">＋ Ajouter</div>
                   </button>
@@ -1291,6 +1304,8 @@ function AppShell({ user, profile, onProfileUpdate, onLogout, showToast }) {
   const [renameModal, setRenameModal] = useState(null);
   const [confirmModal, setConfirmModal] = useState(null);
   const saveTimers = useRef({});
+  const [dirtyIds, setDirtyIds] = useState(new Set()); // collections with unsaved changes
+  const [savingIds, setSavingIds] = useState(new Set()); // collections being saved now
 
   useEffect(() => {
     supabase.from('collections').select('*').eq('user_id', user.id)
@@ -1301,28 +1316,37 @@ function AppShell({ user, profile, onProfileUpdate, onLogout, showToast }) {
       });
   }, [user.id]);
 
-  const persist = useCallback((col) => {
-    clearTimeout(saveTimers.current[col.id]);
-    saveTimers.current[col.id] = setTimeout(async () => {
-      const { error } = await supabase.from('collections')
-        .update({ cards: col.cards, updated_at: new Date().toISOString() })
-        .eq('id', col.id);
-      if (error) showToast('Erreur sauvegarde: ' + error.message, '#c82828');
-    }, 1200);
+  // Save a specific collection to Supabase immediately
+  const saveCollection = useCallback(async (col) => {
+    setSavingIds(prev => new Set([...prev, col.id]));
+    const { error } = await supabase.from('collections')
+      .update({ cards: col.cards, updated_at: new Date().toISOString() })
+      .eq('id', col.id);
+    setSavingIds(prev => { const s = new Set(prev); s.delete(col.id); return s; });
+    if (error) { showToast('Erreur sauvegarde: ' + error.message, '#c82828'); return false; }
+    setDirtyIds(prev => { const s = new Set(prev); s.delete(col.id); return s; });
+    return true;
   }, []);
+
+  // Mark a collection as dirty and schedule an auto-save after 5s of inactivity
+  const markDirty = useCallback((col) => {
+    setDirtyIds(prev => new Set([...prev, col.id]));
+    clearTimeout(saveTimers.current[col.id]);
+    saveTimers.current[col.id] = setTimeout(() => saveCollection(col), 5000);
+  }, [saveCollection]);
 
   const updateCollection = useCallback((updated) => {
     setCollections(prev => prev.map(c => c.id === updated.id ? updated : c));
-    persist(updated);
-  }, [persist]);
+    markDirty(updated);
+  }, [markDirty]);
 
   const addToCollection = useCallback((colId, newCards) => {
     setCollections(prev => prev.map(c => {
       if (c.id !== colId) return c;
       const updated = { ...c, cards: [...c.cards, ...newCards] };
-      persist(updated); return updated;
+      markDirty(updated); return updated;
     }));
-  }, [persist]);
+  }, [markDirty]);
 
   const createCollection = async () => {
     const name = newColName.trim() || 'Nouvelle collection';
@@ -1417,7 +1441,7 @@ function AppShell({ user, profile, onProfileUpdate, onLogout, showToast }) {
       {mobOpen && <div className="mob-drawer open"><div className="mob-overlay" onClick={() => setMob(false)} />{sidebar}</div>}
 
       <main className="main">
-        {page === 'collection' && <CollectionPage collection={activeCollection} allCollections={collections} onUpdate={updateCollection} onAddToCollection={addToCollection} showToast={showToast} />}
+        {page === 'collection' && <CollectionPage collection={activeCollection} allCollections={collections} onUpdate={updateCollection} onAddToCollection={addToCollection} showToast={showToast} isDirty={activeCollection ? dirtyIds.has(activeCollection.id) : false} isSaving={activeCollection ? savingIds.has(activeCollection.id) : false} onSave={() => { const col = collections.find(c => c.id === activeColId); if (col) saveCollection(col).then(ok => ok && showToast('Collection sauvegardée ✦')); }} />}
         {page === 'browse' && <BrowsePage allCollections={collections} onAddToCollection={addToCollection} showToast={showToast} />}
         {page === 'account' && <AccountPage user={user} profile={profile} onProfileUpdate={onProfileUpdate} showToast={showToast} onLogout={onLogout} />}
       </main>
