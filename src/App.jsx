@@ -3,6 +3,26 @@ import { supabase } from "./lib/supabase";
 
 const TCGDEX = "https://api.tcgdex.net/v2/fr";
 
+// ─── CONFIG LOGO ─────────────────────────────────────────────────────────────
+// Pour utiliser votre propre logo :
+//   1. Copiez votre fichier (PNG/SVG/WEBP) dans le dossier  public/  du projet
+//   2. Remplacez null par le chemin :  const CUSTOM_LOGO_URL = '/mon-logo.png';
+//   Ou utilisez une URL distante :     const CUSTOM_LOGO_URL = 'https://…/logo.svg';
+const CUSTOM_LOGO_URL = null;
+
+// ─── RARETÉ ──────────────────────────────────────────────────────────────────
+function rarityColor(r) {
+  if (!r) return '#6a5870';
+  const s = r.toLowerCase();
+  if (s.includes('secret') || s.includes('rainbow') || s.includes('hyper')) return '#d040a0';
+  if (s.includes('ultra') || s.includes('vmax') || s.includes('vstar') || s.includes('amazing')) return '#e05030';
+  if (s.includes('holo') && (s.includes('rare') || s.includes('ex') || s.includes('gx'))) return '#c8a448';
+  if (s.includes('holo')) return '#c8a448';
+  if (s.includes('rare')) return '#4090d0';
+  if (s.includes('uncommon') || s.includes('peu')) return '#50a860';
+  return '#607080';
+}
+
 // ─── CSS ──────────────────────────────────────────────────────────────────────
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&family=Outfit:wght@300;400;500;600;700&display=swap');
@@ -19,30 +39,38 @@ html{background:var(--bg)}
 html,body,#root{width:100%;min-height:100%;margin:0;padding:0}
 body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
 body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
-  background:radial-gradient(ellipse 60% 40% at 0% 0%,rgba(200,40,40,.06) 0%,transparent 55%),
-  radial-gradient(ellipse 50% 35% at 100% 100%,rgba(200,96,48,.05) 0%,transparent 55%),
-  radial-gradient(ellipse 30% 25% at 50% 50%,rgba(200,164,72,.025) 0%,transparent 60%)}
+  background:
+    radial-gradient(ellipse 60% 40% at 0% 0%,rgba(200,40,40,.06) 0%,transparent 55%),
+    radial-gradient(ellipse 50% 35% at 100% 100%,rgba(200,96,48,.05) 0%,transparent 55%),
+    radial-gradient(ellipse 30% 25% at 50% 50%,rgba(200,164,72,.025) 0%,transparent 60%)}
 #root{background:var(--bg)}
-::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:var(--bg)}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:99px}
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:99px}
 
-/* LOGO */
-.logo{font-family:'Fredoka',sans-serif;font-weight:700;font-size:1.55rem;letter-spacing:3px;text-transform:uppercase;
-  color:#f5ece0;-webkit-text-stroke:1.5px var(--red);text-shadow:0 0 24px rgba(200,40,40,.4),2px 2px 0 rgba(60,5,5,.9);
+/* ── LOGO ── */
+.logo{font-family:'Fredoka',sans-serif;font-weight:700;font-size:1.55rem;letter-spacing:3px;
+  text-transform:uppercase;color:#f5ece0;-webkit-text-stroke:1.5px var(--red);
+  text-shadow:0 0 24px rgba(200,40,40,.4),2px 2px 0 rgba(60,5,5,.9);
   display:flex;align-items:center;gap:10px;white-space:nowrap}
-.logo-icon{width:30px;height:30px;border-radius:50%;flex-shrink:0;background:linear-gradient(135deg,var(--red),var(--orange));
-  display:flex;align-items:center;justify-content:center;font-size:.85rem;color:#fff;-webkit-text-stroke:0;text-shadow:none;
-  box-shadow:0 0 14px rgba(200,40,40,.55),inset 0 1px 0 rgba(255,255,255,.15)}
+.logo-placeholder{border:1.5px dashed rgba(255,255,255,.35);border-radius:8px;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+  background:linear-gradient(135deg,var(--red),var(--orange));
+  font-size:.9rem;color:#fff;position:relative;overflow:hidden}
+.logo-placeholder-lbl{position:absolute;bottom:1px;right:2px;font-family:'Outfit',sans-serif;
+  font-size:.38em;font-weight:700;color:rgba(255,255,255,.6);letter-spacing:.5px}
 
-/* SHELL */
+/* ── SHELL ── */
 .app-shell{display:flex;width:100vw;min-height:100vh;background:var(--bg)}
 .sidebar{width:var(--sb-w);flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);
-  display:flex;flex-direction:column;position:sticky;top:0;height:100vh;padding:20px 0;overflow-y:auto;z-index:50}
+  display:flex;flex-direction:column;position:sticky;top:0;height:100vh;
+  padding:20px 0;overflow-y:auto;z-index:50}
 .sb-top{padding:0 16px 18px;border-bottom:1px solid var(--border);margin-bottom:14px}
 .sb-nav{flex:1;padding:0 10px;display:flex;flex-direction:column;gap:3px}
-.sb-section-label{font-size:.58rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--muted);padding:10px 12px 4px;margin-top:4px}
-.sb-link{display:flex;align-items:center;gap:9px;padding:9px 12px;border-radius:10px;font-size:.82rem;font-weight:600;
-  color:var(--text2);cursor:pointer;transition:all .14s;border:1px solid transparent;background:transparent;
-  font-family:'Outfit',sans-serif;text-align:left;width:100%}
+.sb-section-label{font-size:.58rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;
+  color:var(--muted);padding:10px 12px 4px;margin-top:4px}
+.sb-link{display:flex;align-items:center;gap:9px;padding:9px 12px;border-radius:10px;
+  font-size:.82rem;font-weight:600;color:var(--text2);cursor:pointer;transition:all .14s;
+  border:1px solid transparent;background:transparent;font-family:'Outfit',sans-serif;text-align:left;width:100%}
 .sb-link:hover{background:var(--surface);color:var(--text)}
 .sb-link.active{background:rgba(200,40,40,.14);color:var(--red2);border-color:rgba(200,40,40,.25)}
 .sb-link .icon{font-size:.95rem;width:20px;text-align:center;flex-shrink:0}
@@ -52,7 +80,8 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 .sb-email{font-size:.68rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:10px}
 .main{flex:1;min-width:0;display:flex;flex-direction:column;width:0;background:var(--bg)}
 .mob-header{display:none;align-items:center;justify-content:space-between;padding:0 16px;height:52px;
-  background:rgba(14,12,16,.95);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;backdrop-filter:blur(12px);flex-shrink:0}
+  background:rgba(14,12,16,.95);border-bottom:1px solid var(--border);
+  position:sticky;top:0;z-index:100;backdrop-filter:blur(12px);flex-shrink:0}
 .mob-menu-btn{background:none;border:none;color:var(--text);font-size:1.3rem;cursor:pointer}
 .mob-drawer{display:none;position:fixed;inset:0;z-index:200}
 .mob-drawer.open{display:block}
@@ -60,14 +89,17 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 .mob-drawer .sidebar{position:relative;z-index:1}
 @media(max-width:768px){.sidebar{display:none}.mob-header{display:flex}}
 
-/* BUTTONS */
+/* ── BUTTONS ── */
 .btn{display:inline-flex;align-items:center;gap:7px;padding:8px 18px;border-radius:999px;
   border:1px solid var(--border2);background:var(--surface2);color:var(--text);
-  font-family:'Outfit',sans-serif;font-size:.8rem;font-weight:600;cursor:pointer;transition:all .15s;white-space:nowrap;flex-shrink:0}
+  font-family:'Outfit',sans-serif;font-size:.8rem;font-weight:600;cursor:pointer;
+  transition:all .15s;white-space:nowrap;flex-shrink:0}
 .btn:hover{background:var(--border2);border-color:var(--muted);transform:translateY(-1px)}
 .btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
-.btn-red{background:linear-gradient(135deg,var(--red),var(--orange));border-color:var(--red);color:#fff;box-shadow:0 2px 12px rgba(200,40,40,.3)}
+.btn-red{background:linear-gradient(135deg,var(--red),var(--orange));border-color:var(--red);
+  color:#fff;box-shadow:0 2px 12px rgba(200,40,40,.3)}
 .btn-red:hover{box-shadow:0 4px 20px rgba(200,40,40,.45);transform:translateY(-1px)}
+.btn-red:disabled{box-shadow:none}
 .btn-ghost{background:transparent;border-color:transparent}
 .btn-ghost:hover{background:var(--surface);border-color:var(--border)}
 .btn-danger{color:var(--red2);background:transparent;border-color:transparent}
@@ -83,33 +115,43 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 .chip:hover{border-color:var(--muted);color:var(--text)}
 .chip.on{background:rgba(200,40,40,.14);border-color:var(--red2);color:var(--red2)}
 
-/* FORMS */
+/* ── FORMS ── */
 .field{margin-bottom:15px}
-.field label{display:block;font-size:.67rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:5px}
-.field input,.field select{width:100%;padding:10px 13px;background:var(--surface);border:1px solid var(--border2);
-  border-radius:10px;color:var(--text);font-family:'Outfit',sans-serif;font-size:.88rem;outline:none;transition:border-color .15s}
+.field label{display:block;font-size:.67rem;font-weight:700;letter-spacing:1.5px;
+  text-transform:uppercase;color:var(--muted);margin-bottom:5px}
+.field input,.field select{width:100%;padding:10px 13px;background:var(--surface);
+  border:1px solid var(--border2);border-radius:10px;color:var(--text);
+  font-family:'Outfit',sans-serif;font-size:.88rem;outline:none;transition:border-color .15s}
 .field input:focus,.field select:focus{border-color:var(--red2)}
 .field input::placeholder{color:var(--muted)}
 .field-err{font-size:.72rem;color:var(--red2);margin-top:4px}
 .field select option{background:var(--bg2)}
 
-/* AUTH */
-.auth-page{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:20px;background:var(--bg)}
-.auth-box{width:min(480px,100%);background:var(--surface);border:1px solid var(--border2);border-radius:22px;
-  padding:clamp(24px,5vw,44px);box-shadow:0 24px 80px rgba(0,0,0,.7);animation:fadeUp .25s ease}
+/* ── AUTH ── */
+.auth-page{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+  padding:20px;background:var(--bg)}
+.auth-box{width:min(480px,100%);background:var(--surface);border:1px solid var(--border2);
+  border-radius:22px;padding:clamp(24px,5vw,44px);box-shadow:0 24px 80px rgba(0,0,0,.7);
+  animation:fadeUp .25s ease}
 .auth-logo{display:flex;justify-content:center;margin-bottom:28px}
 .auth-logo .logo{font-size:clamp(1.3rem,4vw,1.8rem)}
-.auth-title{font-family:'Fredoka',sans-serif;font-size:.9rem;letter-spacing:2px;text-transform:uppercase;color:var(--text2);margin-bottom:22px;text-align:center}
-.auth-error{background:rgba(200,40,40,.12);border:1px solid rgba(200,40,40,.3);border-radius:9px;padding:10px 14px;font-size:.78rem;color:var(--red2);margin-bottom:14px}
-.auth-success{background:rgba(58,184,112,.12);border:1px solid rgba(58,184,112,.3);border-radius:9px;padding:10px 14px;font-size:.78rem;color:var(--green);margin-bottom:14px}
+.auth-title{font-family:'Fredoka',sans-serif;font-size:.9rem;letter-spacing:2px;
+  text-transform:uppercase;color:var(--text2);margin-bottom:22px;text-align:center}
+.auth-error{background:rgba(200,40,40,.12);border:1px solid rgba(200,40,40,.3);
+  border-radius:9px;padding:10px 14px;font-size:.78rem;color:var(--red2);margin-bottom:14px}
+.auth-success{background:rgba(58,184,112,.12);border:1px solid rgba(58,184,112,.3);
+  border-radius:9px;padding:10px 14px;font-size:.78rem;color:var(--green);margin-bottom:14px}
 .auth-switch{text-align:center;margin-top:18px;font-size:.78rem;color:var(--muted)}
-.auth-switch button{background:none;border:none;color:var(--red2);cursor:pointer;font-weight:700;font-size:.78rem;font-family:'Outfit',sans-serif}
+.auth-switch button{background:none;border:none;color:var(--red2);cursor:pointer;
+  font-weight:700;font-size:.78rem;font-family:'Outfit',sans-serif}
+.auth-switch button:hover{text-decoration:underline}
 
-/* PAGE */
+/* ── PAGE ── */
 .page-wrap{display:flex;flex-direction:column;flex:1;min-width:0;width:100%;background:var(--bg)}
-.page-hdr{display:flex;align-items:center;justify-content:space-between;padding:20px 28px 12px;flex-wrap:wrap;gap:10px;flex-shrink:0}
-.page-title{font-family:'Fredoka',sans-serif;font-size:clamp(1.1rem,2.5vw,1.45rem);letter-spacing:2px;text-transform:uppercase;
-  color:var(--text);text-shadow:0 0 20px rgba(200,40,40,.2)}
+.page-hdr{display:flex;align-items:center;justify-content:space-between;
+  padding:20px 28px 12px;flex-wrap:wrap;gap:10px;flex-shrink:0}
+.page-title{font-family:'Fredoka',sans-serif;font-size:clamp(1.1rem,2.5vw,1.45rem);
+  letter-spacing:2px;text-transform:uppercase;color:var(--text);text-shadow:0 0 20px rgba(200,40,40,.2)}
 .page-title span{color:var(--red2)}
 .page-hdr-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .prog{display:flex;align-items:center;gap:14px;padding:6px 28px 14px;flex-shrink:0}
@@ -122,230 +164,312 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 .tbar-lbl{font-size:.6rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted)}
 .tbar-sep{width:1px;height:20px;background:var(--border);flex-shrink:0}
 
-/* UPLOAD */
+/* ── UPLOAD ── */
 .upsec{padding:14px 28px;flex-shrink:0}
-.upzone{display:block;width:100%;border:2px dashed var(--border2);border-radius:var(--radius);padding:22px 20px;cursor:pointer;transition:all .2s;background:var(--surface)}
+.upzone{display:block;width:100%;border:2px dashed var(--border2);border-radius:var(--radius);
+  padding:22px 20px;cursor:pointer;transition:all .2s;background:var(--surface)}
 .upzone:hover,.upzone.drag{border-color:var(--red);background:rgba(200,40,40,.04)}
 .upzone input{display:none}
 .up-inner{display:flex;align-items:center;gap:16px;justify-content:center}
-.up-orb{width:42px;height:42px;border-radius:50%;background:var(--surface2);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0}
+.up-orb{width:42px;height:42px;border-radius:50%;background:var(--surface2);
+  border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;
+  font-size:1.2rem;flex-shrink:0}
 .up-t1{font-weight:700;font-size:.88rem}
 .up-t2{font-size:.7rem;color:var(--muted);margin-top:2px}
 .up-t2 span{color:var(--red2);font-weight:600}
 
-/* IMPORT */
-.imp-panel{margin:0 28px 14px;flex-shrink:0;background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius);overflow:hidden}
-.imp-head{display:flex;align-items:center;gap:10px;padding:12px 18px;cursor:pointer;font-weight:700;font-size:.82rem;background:var(--surface2);transition:background .15s;border-bottom:1px solid transparent;user-select:none}
+/* ── IMPORT PANEL ── */
+.imp-panel{margin:0 28px 14px;flex-shrink:0;background:var(--surface);
+  border:1px solid var(--border2);border-radius:var(--radius);overflow:hidden}
+.imp-head{display:flex;align-items:center;gap:10px;padding:12px 18px;cursor:pointer;
+  font-weight:700;font-size:.82rem;background:var(--surface2);transition:background .15s;
+  border-bottom:1px solid transparent;user-select:none}
 .imp-head:hover{background:var(--border)}
 .imp-head.open{border-bottom-color:var(--border2)}
 .imp-arrow{margin-left:auto;color:var(--muted);font-size:.7rem;transition:transform .2s}
 .imp-head.open .imp-arrow{transform:rotate(180deg)}
 .imp-body{padding:16px 18px}
-.imp-select{width:100%;padding:9px 13px;background:var(--bg);border:1px solid var(--border2);border-radius:10px;color:var(--text);font-family:'Outfit',sans-serif;font-size:.82rem;outline:none;margin-bottom:12px;cursor:pointer}
+.imp-select{width:100%;padding:9px 13px;background:var(--bg);border:1px solid var(--border2);
+  border-radius:10px;color:var(--text);font-family:'Outfit',sans-serif;font-size:.82rem;
+  outline:none;margin-bottom:12px;cursor:pointer}
 .imp-select:focus{border-color:var(--red2)}
 .imp-select option{background:var(--bg)}
 .imp-info{font-size:.72rem;color:var(--muted);margin-bottom:12px;line-height:1.6}
 .imp-info strong{color:var(--text2)}
-.imp-preview{display:grid;grid-template-columns:repeat(auto-fill,minmax(56px,1fr));gap:6px;margin-bottom:14px;max-height:240px;overflow-y:auto}
-.imp-thumb{border-radius:6px;overflow:hidden;border:1px solid var(--border);aspect-ratio:2.5/3.5;background:var(--surface2);position:relative;cursor:pointer}
-.imp-thumb img{width:100%;height:100%;object-fit:cover;display:block}
-.imp-thumb.sel{border-color:var(--red2);box-shadow:0 0 0 2px var(--red2)}
-.imp-thumb.sel::after{content:'✓';position:absolute;top:3px;right:3px;width:16px;height:16px;border-radius:50%;background:var(--red2);color:#fff;font-size:.55rem;font-weight:900;display:flex;align-items:center;justify-content:center}
-.spinner-wrap{display:flex;align-items:center;gap:10px;padding:20px;color:var(--muted);font-size:.8rem;justify-content:center}
-.spinner{width:18px;height:18px;border:2px solid var(--border2);border-top-color:var(--red);border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
+.imp-sel-bar{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+.imp-sel-ct{font-size:.72rem;color:var(--muted);margin-left:auto}
+.imp-preview{display:grid;grid-template-columns:repeat(auto-fill,minmax(58px,1fr));
+  gap:6px;margin-bottom:14px;max-height:260px;overflow-y:auto;padding-right:2px}
+.imp-thumb{border-radius:6px;overflow:hidden;border:2px solid var(--border);
+  aspect-ratio:2.5/3.5;background:var(--surface2);position:relative;cursor:pointer;
+  transition:border-color .15s}
+.imp-thumb img{width:100%;height:100%;object-fit:cover;display:block;transition:filter .2s}
+.imp-thumb:not(.sel) img{filter:brightness(.55) grayscale(.3)}
+.imp-thumb.sel{border-color:var(--red2)}
+.imp-thumb-chk{position:absolute;top:3px;right:3px;width:16px;height:16px;border-radius:4px;
+  background:rgba(0,0,0,.5);border:1.5px solid rgba(255,255,255,.4);
+  display:flex;align-items:center;justify-content:center;font-size:.55rem;font-weight:900;color:#fff;transition:all .15s}
+.imp-thumb.sel .imp-thumb-chk{background:var(--red2);border-color:var(--red2)}
+.imp-thumb.sel .imp-thumb-chk::after{content:'✓'}
+.spinner-wrap{display:flex;align-items:center;gap:10px;padding:20px;
+  color:var(--muted);font-size:.8rem;justify-content:center}
+.spinner{width:18px;height:18px;border:2px solid var(--border2);border-top-color:var(--red);
+  border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
 @keyframes spin{to{transform:rotate(360deg)}}
 
-/* COLLECTION GRID */
+/* ── TILT CARD (new scanflip-style) ── */
+.tilt-wrap{
+  position:relative;border-radius:11px;
+  will-change:transform;cursor:pointer;
+  animation:fadeUp .28s ease both;
+}
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px) scale(.96)}to{opacity:1;transform:none}}
+.tilt-wrap.drag-over .card{border-color:var(--red2)!important;box-shadow:0 0 0 2px var(--red2)!important}
+.card{
+  width:100%;border-radius:11px;overflow:hidden;
+  background:var(--surface);border:1px solid var(--border2);
+  position:relative;
+  transition:border-color .25s,box-shadow .25s;
+}
+.card.got{border-color:rgba(58,184,112,.35)}
+.tilt-wrap:hover .card{border-color:var(--red2);box-shadow:0 28px 70px rgba(0,0,0,.55),0 0 0 1px rgba(200,40,40,.25)}
+.tilt-wrap:hover .card.got{border-color:var(--green);box-shadow:0 28px 70px rgba(0,0,0,.5),0 0 0 1px rgba(58,184,112,.3)}
+.card-img-box{width:100%;aspect-ratio:2.5/3.5;overflow:hidden;position:relative}
+.card-img{width:100%;height:100%;object-fit:cover;display:block;transition:filter .4s}
+.card:not(.got) .card-img{filter:grayscale(70%) brightness(.6)}
+.card-glare{
+  position:absolute;inset:0;pointer-events:none;z-index:10;
+  opacity:0;transition:opacity .4s ease;border-radius:inherit;
+}
+.card-badge{position:absolute;top:6px;right:6px;z-index:4;width:20px;height:20px;border-radius:50%;
+  background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;
+  font-size:.6rem;font-weight:900;box-shadow:0 2px 7px rgba(0,0,0,.5)}
+.card-checkbox{position:absolute;top:6px;left:6px;z-index:5;width:20px;height:20px;border-radius:5px;
+  border:2px solid rgba(255,255,255,.4);background:rgba(0,0,0,.5);
+  display:flex;align-items:center;justify-content:center;cursor:pointer;
+  transition:all .15s;opacity:0}
+.tilt-wrap:hover .card-checkbox,.card-checkbox.checked,.sel-mode .card-checkbox{opacity:1}
+.card-checkbox.checked{background:var(--red2);border-color:var(--red2)}
+.card-checkbox.checked::after{content:'✓';color:#fff;font-size:.6rem;font-weight:900}
+.card-foot{padding:8px 9px 9px;border-top:1px solid var(--border)}
+.card-name{font-size:.74rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card-meta{font-size:.61rem;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.5}
+.card-rarity{font-weight:700}
+.card-acts{display:flex;gap:4px;margin-top:6px;flex-wrap:wrap}
+.glist .tilt-wrap{display:flex;align-items:center;border-radius:11px;overflow:hidden}
+.glist .card{display:flex;align-items:center;gap:10px;padding-right:10px;border-radius:0;border:none}
+.glist .card-img-box{width:60px;min-width:60px;aspect-ratio:2.5/3.5;flex-shrink:0}
+.glist .card-foot{flex:1;border-top:none;padding:8px 0}
+.glist .card-name{font-size:.84rem}
+.glist .card-glare{display:none}
+.glist .card-checkbox{top:50%;transform:translateY(-50%)}
+
+/* ── COL WRAP ── */
 .col-wrap{padding:14px 28px 80px;flex:1;min-width:0;background:var(--bg)}
-.sec-title{display:flex;align-items:center;gap:10px;margin-bottom:14px;font-size:.6rem;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(--muted)}
+.sec-title{display:flex;align-items:center;gap:10px;margin-bottom:14px;
+  font-size:.6rem;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(--muted)}
 .sec-title::after{content:'';flex:1;height:1px;background:var(--border)}
 .grid{display:grid;gap:12px;width:100%}
-.g6{grid-template-columns:repeat(6,1fr)}
-.g4{grid-template-columns:repeat(4,1fr)}
-.g3{grid-template-columns:repeat(3,1fr)}
-.g2{grid-template-columns:repeat(2,1fr)}
+.g6{grid-template-columns:repeat(6,1fr)}.g4{grid-template-columns:repeat(4,1fr)}
+.g3{grid-template-columns:repeat(3,1fr)}.g2{grid-template-columns:repeat(2,1fr)}
 .glist{grid-template-columns:1fr;gap:8px}
 @media(max-width:1100px){.g6{grid-template-columns:repeat(5,1fr)}}
 @media(max-width:900px){.g6{grid-template-columns:repeat(4,1fr)}.g4{grid-template-columns:repeat(3,1fr)}}
 @media(max-width:700px){.g6,.g4{grid-template-columns:repeat(3,1fr)}.g3{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:500px){.g6,.g4,.g3{grid-template-columns:repeat(2,1fr)}}
 
-/* CARD */
-.card-wrap{position:relative;cursor:pointer}
-.card-wrap.dragging{opacity:.35;transform:scale(.97)}
-.card-wrap.drag-over .card{border-color:var(--red2)!important;box-shadow:0 0 0 2px var(--red2)!important}
-.card{width:100%;border-radius:11px;overflow:hidden;background:var(--surface);border:1px solid var(--border2);
-  position:relative;transform-style:preserve-3d;
-  transition:border-color .3s,box-shadow .3s,transform .5s cubic-bezier(.23,1,.32,1);
-  animation:fadeUp .28s ease both;will-change:transform}
-@keyframes fadeUp{from{opacity:0;transform:translateY(8px) scale(.97)}to{opacity:1;transform:none}}
-@keyframes fadeIn{from{opacity:0}to{opacity:1}}
-.card:hover{border-color:var(--red2);box-shadow:0 20px 60px rgba(200,40,40,.35),0 0 0 1px rgba(200,40,40,.2)}
-.card.got{border-color:rgba(58,184,112,.3)}
-.card.got:hover{border-color:var(--green);box-shadow:0 20px 60px rgba(58,184,112,.2)}
-.card-img-box{width:100%;aspect-ratio:2.5/3.5;overflow:hidden;position:relative}
-.card-img{width:100%;height:100%;object-fit:cover;display:block;transition:filter .4s}
-.card:not(.got) .card-img{filter:grayscale(72%) brightness(.62) sepia(.05)}
-
-/* HOLO EFFECT — more dramatic */
-.card-holo{position:absolute;inset:0;border-radius:11px 11px 0 0;pointer-events:none;z-index:3;overflow:hidden;opacity:0;transition:opacity .25s}
-.card:hover .card-holo{opacity:1}
-.card-holo::after{content:'';position:absolute;inset:-100%;
-  background:conic-gradient(from var(--ha,0deg) at var(--mx,50%) var(--my,50%),
-    rgba(255,80,60,.12) 0deg,rgba(255,180,60,.18) 60deg,rgba(60,180,255,.12) 120deg,
-    rgba(180,60,255,.1) 180deg,rgba(80,255,160,.1) 240deg,rgba(255,80,60,.12) 360deg);
-  mix-blend-mode:screen;transition:background .08s}
-.card-holo::before{content:'';position:absolute;inset:0;
-  background:radial-gradient(circle at var(--mx,50%) var(--my,50%),rgba(255,255,255,.18) 0%,rgba(255,255,255,.04) 40%,transparent 70%);
-  mix-blend-mode:screen}
-
-.card-badge{position:absolute;top:6px;right:6px;z-index:4;width:20px;height:20px;border-radius:50%;
-  background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;
-  font-size:.6rem;font-weight:900;box-shadow:0 2px 7px rgba(0,0,0,.5)}
-
-/* CHECKBOX on card */
-.card-checkbox{position:absolute;top:6px;left:6px;z-index:5;width:20px;height:20px;border-radius:5px;
-  border:2px solid rgba(255,255,255,.4);background:rgba(0,0,0,.5);
-  display:flex;align-items:center;justify-content:center;
-  cursor:pointer;transition:all .15s;opacity:0}
-.card-wrap:hover .card-checkbox,.card-checkbox.checked,.sel-mode .card-checkbox{opacity:1}
-.card-checkbox.checked{background:var(--red2);border-color:var(--red2)}
-.card-checkbox.checked::after{content:'✓';color:#fff;font-size:.6rem;font-weight:900}
-
-.card-foot{padding:7px 8px 8px;border-top:1px solid var(--border)}
-.card-name{font-size:.74rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.card-meta{font-size:.61rem;color:var(--muted);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.card-acts{display:flex;gap:4px;margin-top:6px;flex-wrap:wrap}
-
-/* LIST MODE */
-.glist .card-wrap{width:100%}
-.glist .card{display:flex;align-items:center;gap:10px;padding-right:10px;overflow:hidden;border-radius:11px}
-.glist .card-img-box{width:60px;min-width:60px;aspect-ratio:2.5/3.5;flex-shrink:0}
-.glist .card-foot{flex:1;border-top:none;padding:8px 0}
-.glist .card-holo{display:none}
-.glist .card-name{font-size:.84rem}
-.glist .card-checkbox{top:50%;transform:translateY(-50%)}
-
-/* BULK ACTION BAR */
-.bulk-bar{
-  position:fixed;bottom:28px;left:50%;transform:translateX(-50%) translateY(80px);
+/* ── BULK BAR ── */
+.bulk-bar{position:fixed;bottom:28px;left:50%;transform:translateX(-50%) translateY(80px);
   z-index:400;display:flex;align-items:center;gap:10px;
   background:var(--bg2);border:1px solid var(--border2);border-radius:999px;
-  padding:10px 16px;box-shadow:0 8px 40px rgba(0,0,0,.6);
-  transition:transform .28s cubic-bezier(.23,1,.32,1),opacity .28s;opacity:0;pointer-events:none;
-  white-space:nowrap;flex-wrap:wrap;justify-content:center;
-}
+  padding:10px 16px;box-shadow:0 8px 40px rgba(0,0,0,.65);
+  transition:transform .28s cubic-bezier(.23,1,.32,1),opacity .28s;
+  opacity:0;pointer-events:none;white-space:nowrap;flex-wrap:wrap;justify-content:center}
 .bulk-bar.show{transform:translateX(-50%) translateY(0);opacity:1;pointer-events:all}
-.bulk-count{font-size:.8rem;font-weight:700;color:var(--text2);padding-right:8px;border-right:1px solid var(--border2)}
+.bulk-count{font-size:.8rem;font-weight:700;color:var(--text2);
+  padding-right:8px;border-right:1px solid var(--border2)}
 
-/* BROWSE */
-.browse-sets-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;padding:0 28px 20px}
-.set-card{background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius);padding:14px;cursor:pointer;transition:all .15s;display:flex;flex-direction:column;gap:8px}
-.set-card:hover{border-color:var(--red2);transform:translateY(-2px);box-shadow:0 6px 20px rgba(200,40,40,.12)}
-.set-card-logo{height:40px;display:flex;align-items:center}
-.set-card-logo img{max-height:100%;max-width:100%;object-fit:contain;filter:drop-shadow(0 1px 4px rgba(0,0,0,.5))}
-.set-card-name{font-weight:700;font-size:.86rem;line-height:1.3}
-.set-card-meta{font-size:.7rem;color:var(--muted)}
-.set-card-badge{display:inline-block;font-size:.63rem;font-weight:700;padding:2px 8px;border-radius:99px;background:rgba(200,40,40,.12);color:var(--red2);border:1px solid rgba(200,40,40,.22);align-self:flex-start}
+/* ── BROWSE ── */
+.browse-scroll{flex:1;overflow-y:auto;padding-bottom:80px}
+.serie-section{margin-bottom:28px}
+.serie-header{display:flex;align-items:center;gap:12px;padding:0 28px;margin-bottom:12px}
+.serie-header-logo{height:28px;max-width:120px;object-fit:contain;
+  filter:drop-shadow(0 1px 3px rgba(0,0,0,.5));flex-shrink:0}
+.serie-name{font-family:'Fredoka',sans-serif;font-size:.9rem;letter-spacing:2px;
+  text-transform:uppercase;color:var(--text2)}
+.serie-header::after{content:'';flex:1;height:1px;background:var(--border)}
+.browse-sets-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));
+  gap:10px;padding:0 28px 4px}
+.set-card{background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius);
+  padding:14px;cursor:pointer;transition:all .15s;display:flex;flex-direction:column;gap:8px}
+.set-card:hover{border-color:var(--red2);transform:translateY(-2px);
+  box-shadow:0 6px 20px rgba(200,40,40,.12)}
+.set-card-logo{height:36px;display:flex;align-items:center}
+.set-card-logo img{max-height:100%;max-width:100%;object-fit:contain;
+  filter:drop-shadow(0 1px 4px rgba(0,0,0,.5))}
+.set-card-name{font-weight:700;font-size:.84rem;line-height:1.3}
+.set-card-meta{font-size:.68rem;color:var(--muted)}
+.set-card-badge{font-size:.62rem;font-weight:700;padding:2px 8px;border-radius:99px;
+  background:rgba(200,40,40,.12);color:var(--red2);border:1px solid rgba(200,40,40,.22);align-self:flex-start}
 
-.browse-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;padding:0 28px 80px}
+/* Browse card grid */
+.browse-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;padding:0 28px 20px}
 @media(max-width:1100px){.browse-grid{grid-template-columns:repeat(5,1fr)}}
 @media(max-width:900px){.browse-grid{grid-template-columns:repeat(4,1fr)}}
 @media(max-width:700px){.browse-grid{grid-template-columns:repeat(3,1fr)}}
 @media(max-width:480px){.browse-grid{grid-template-columns:repeat(2,1fr)}}
-.browse-card{width:100%;border-radius:11px;overflow:hidden;background:var(--surface);border:1px solid var(--border2);
-  position:relative;transition:all .18s;animation:fadeUp .2s ease both;cursor:pointer}
-.browse-card:hover{border-color:var(--red2);transform:translateY(-2px);box-shadow:0 8px 24px rgba(200,40,40,.14)}
+.browse-card{width:100%;border-radius:11px;overflow:hidden;background:var(--surface);
+  border:1px solid var(--border2);position:relative;transition:all .18s;
+  animation:fadeUp .2s ease both;cursor:pointer}
+.browse-card:hover{border-color:var(--red2);transform:translateY(-2px);
+  box-shadow:0 8px 24px rgba(200,40,40,.14)}
 .browse-card.sel{border-color:var(--red2);box-shadow:0 0 0 2px var(--red2)}
 .browse-card .card-img-box{aspect-ratio:2.5/3.5}
 .browse-card .card-img{filter:none}
-.browse-in-col{position:absolute;top:6px;right:6px;z-index:4;width:20px;height:20px;border-radius:50%;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.6rem;font-weight:900;box-shadow:0 2px 7px rgba(0,0,0,.5)}
+.browse-in-col{position:absolute;top:6px;right:6px;z-index:4;width:20px;height:20px;
+  border-radius:50%;background:var(--green);color:#fff;display:flex;align-items:center;
+  justify-content:center;font-size:.6rem;font-weight:900;box-shadow:0 2px 7px rgba(0,0,0,.5)}
 .browse-chk{position:absolute;top:6px;left:6px;z-index:4;width:20px;height:20px;border-radius:5px;
   border:2px solid rgba(255,255,255,.5);background:rgba(0,0,0,.5);
-  display:flex;align-items:center;justify-content:center;transition:all .15s;opacity:0}
+  display:flex;align-items:center;justify-content:center;transition:all .15s;
+  opacity:0;pointer-events:none}
 .browse-card:hover .browse-chk,.browse-card.sel .browse-chk{opacity:1}
 .browse-card.sel .browse-chk{background:var(--red2);border-color:var(--red2)}
 .browse-card.sel .browse-chk::after{content:'✓';color:#fff;font-size:.6rem;font-weight:900}
-.browse-add-hover{position:absolute;inset:0;z-index:3;display:flex;align-items:flex-end;justify-content:center;
-  padding-bottom:10px;background:linear-gradient(to top,rgba(14,12,16,.88) 0%,transparent 55%);
-  opacity:0;transition:opacity .2s;border:none;cursor:pointer}
-.browse-card:hover .browse-add-hover:not(.hidden){opacity:1}
-.browse-add-inner{display:flex;gap:5px;align-items:center;background:linear-gradient(135deg,var(--red),var(--orange));color:#fff;font-family:'Outfit',sans-serif;font-size:.7rem;font-weight:700;padding:5px 12px;border-radius:99px;box-shadow:0 2px 10px rgba(0,0,0,.5)}
+.browse-add-btn{position:absolute;inset:0;z-index:3;display:flex;align-items:flex-end;
+  justify-content:center;padding-bottom:10px;
+  background:linear-gradient(to top,rgba(14,12,16,.9) 0%,transparent 55%);
+  opacity:0;transition:opacity .2s;border:none;cursor:pointer;pointer-events:none}
+.browse-card:hover .browse-add-btn{opacity:1;pointer-events:all}
+.browse-add-inner{display:flex;gap:5px;align-items:center;
+  background:linear-gradient(135deg,var(--red),var(--orange));color:#fff;
+  font-family:'Outfit',sans-serif;font-size:.7rem;font-weight:700;
+  padding:5px 12px;border-radius:99px;box-shadow:0 2px 10px rgba(0,0,0,.5)}
 
-/* CARD ZOOM OVERLAY */
-.zoom-overlay{display:none;position:fixed;inset:0;z-index:600;background:rgba(0,0,0,.88);backdrop-filter:blur(12px);align-items:center;justify-content:center;padding:20px;animation:fadeIn .2s ease}
+/* ── ZOOM MODAL ── */
+.zoom-overlay{display:none;position:fixed;inset:0;z-index:700;
+  background:rgba(0,0,0,.9);backdrop-filter:blur(14px);
+  align-items:center;justify-content:center;padding:20px;animation:fadeIn .2s ease}
 .zoom-overlay.open{display:flex}
-.zoom-img-wrap{position:relative;max-height:90vh;max-width:min(420px,90vw)}
-.zoom-img{width:100%;height:100%;object-fit:contain;border-radius:14px;box-shadow:0 30px 100px rgba(0,0,0,.8),0 0 0 1px rgba(255,255,255,.05)}
-.zoom-close{position:absolute;top:-14px;right:-14px;width:32px;height:32px;border-radius:50%;background:var(--surface2);border:1px solid var(--border2);color:var(--text);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:.9rem;transition:all .15s;z-index:1}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.zoom-inner{position:relative;max-height:90vh;display:flex;flex-direction:column;align-items:center;gap:14px}
+.zoom-img{max-height:80vh;max-width:min(420px,90vw);border-radius:14px;
+  box-shadow:0 40px 120px rgba(0,0,0,.9),0 0 0 1px rgba(255,255,255,.06);
+  animation:zoomIn .25s cubic-bezier(.23,1,.32,1)}
+@keyframes zoomIn{from{opacity:0;transform:scale(.88)}to{opacity:1;transform:none}}
+.zoom-close{position:absolute;top:-14px;right:-14px;width:34px;height:34px;border-radius:50%;
+  background:var(--surface2);border:1px solid var(--border2);color:var(--text);
+  display:flex;align-items:center;justify-content:center;cursor:pointer;
+  font-size:.9rem;transition:all .15s;z-index:1}
 .zoom-close:hover{background:var(--red);border-color:var(--red)}
+.zoom-info{text-align:center}
+.zoom-info-name{font-family:'Fredoka',sans-serif;font-size:1rem;letter-spacing:1px;color:var(--text);margin-bottom:2px}
+.zoom-info-meta{font-size:.72rem;color:var(--muted)}
 
-/* ACCOUNT */
-.account-wrap{padding:0 28px 60px;max-width:540px;width:100%}
-.account-section{background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius);padding:22px;margin-bottom:14px}
-.account-section-title{font-family:'Fredoka',sans-serif;font-size:.82rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--text2);margin-bottom:16px;padding-bottom:10px;border-bottom:1px solid var(--border)}
-
-/* MODAL */
-.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);backdrop-filter:blur(8px);z-index:500;align-items:center;justify-content:center;padding:20px}
+/* ── MODALS ── */
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);
+  backdrop-filter:blur(8px);z-index:500;align-items:center;justify-content:center;padding:20px}
 .overlay.open{display:flex}
-.modal{background:var(--bg2);border:1px solid var(--border2);border-radius:20px;padding:26px 28px;width:min(380px,100%);box-shadow:0 24px 72px rgba(0,0,0,.75);animation:fadeUp .2s ease}
+.modal{background:var(--bg2);border:1px solid var(--border2);border-radius:20px;
+  padding:26px 28px;width:min(380px,100%);box-shadow:0 24px 72px rgba(0,0,0,.75);
+  animation:fadeUp .2s ease}
 @keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
-.modal-title{font-family:'Fredoka',sans-serif;font-size:.82rem;letter-spacing:2px;text-transform:uppercase;color:var(--red2);margin-bottom:20px}
+.modal-title{font-family:'Fredoka',sans-serif;font-size:.82rem;letter-spacing:2px;
+  text-transform:uppercase;color:var(--red2);margin-bottom:20px}
 .modal-acts{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}
+.modal-body{font-size:.84rem;color:var(--text2);line-height:1.6;margin-bottom:4px}
 
-/* TOAST */
+/* ── ACCOUNT ── */
+.account-wrap{padding:0 28px 60px;max-width:540px;width:100%}
+.account-section{background:var(--surface);border:1px solid var(--border2);
+  border-radius:var(--radius);padding:22px;margin-bottom:14px}
+.account-section-title{font-family:'Fredoka',sans-serif;font-size:.82rem;letter-spacing:1.5px;
+  text-transform:uppercase;color:var(--text2);margin-bottom:16px;
+  padding-bottom:10px;border-bottom:1px solid var(--border)}
+
+/* ── TOAST ── */
 .toast{position:fixed;bottom:24px;right:24px;z-index:999;padding:10px 20px;border-radius:999px;
   background:var(--surface);border:1px solid;font-size:.8rem;font-weight:600;
   transform:translateY(50px);opacity:0;transition:all .25s cubic-bezier(.4,0,.2,1);pointer-events:none}
 .toast.show{transform:translateY(0);opacity:1}
 
-/* EMPTY */
+/* ── EMPTY ── */
 .empty{text-align:center;padding:56px 20px;color:var(--muted)}
 .empty-icon{font-size:2.8rem;display:block;margin-bottom:12px;opacity:.3}
 .empty h3{font-family:'Fredoka',sans-serif;font-size:.95rem;color:var(--text);margin-bottom:6px;letter-spacing:1px}
 .empty p{font-size:.78rem}
 
 @media(max-width:768px){
-  .page-hdr,.tbar,.upsec,.col-wrap,.prog,.browse-sets-grid,.browse-grid,.account-wrap{padding-left:14px;padding-right:14px}
+  .page-hdr,.tbar,.upsec,.col-wrap,.prog,.browse-sets-grid,.browse-grid,.account-wrap,.serie-header,.browse-scroll>*{padding-left:14px;padding-right:14px}
   .imp-panel{margin-left:14px;margin-right:14px}
-  .bulk-bar{width:90%;border-radius:16px;bottom:16px}
+  .bulk-bar{width:92%;border-radius:16px;bottom:16px}
 }
 `;
 
-// ─── TILT CARD ────────────────────────────────────────────────────────────────
-function TiltCard({ card, onToggle, onEdit, onDelete, onZoom, listMode, selMode, selected, onSelect,
-                    draggable: isDraggable, onDragStart, onDragOver, onDragEnd, onDrop, dragOver }) {
-  const ref = useRef(null);
-  const holoRef = useRef(null);
-  const haRef = useRef(0);
-  const raf = useRef(null);
+// ─── LOGO COMPONENT ───────────────────────────────────────────────────────────
+function LogoImg({ size = 30 }) {
+  if (CUSTOM_LOGO_URL) {
+    return (
+      <img src={CUSTOM_LOGO_URL} alt="Logo"
+        style={{ width: size, height: size, objectFit: 'contain', borderRadius: 6, flexShrink: 0 }} />
+    );
+  }
+  return (
+    <div className="logo-placeholder" style={{ width: size, height: size }}>
+      <span style={{ fontSize: size * 0.44, lineHeight: 1 }}>◆</span>
+      <div className="logo-placeholder-lbl">LOGO</div>
+    </div>
+  );
+}
 
-  const onMove = useCallback((e) => {
+// ─── TILT CARD ────────────────────────────────────────────────────────────────
+function TiltCard({ card, onToggle, onEdit, onDelete, onZoom, listMode,
+  selMode, selected, onSelect,
+  isDraggable, onDragStart, onDragOver, onDragEnd, onDrop, dragOver }) {
+
+  const wrapRef = useRef(null);
+  const glareRef = useRef(null);
+
+  const onMouseMove = useCallback((e) => {
     if (listMode) return;
-    const el = ref.current; if (!el) return;
+    const el = wrapRef.current; if (!el) return;
     const r = el.getBoundingClientRect();
-    const x = (e.clientX - r.left) / r.width;
-    const y = (e.clientY - r.top) / r.height;
-    // More dramatic tilt — 24 degrees
-    const rx = (y - .5) * -24;
-    const ry = (x - .5) * 24;
-    el.style.transform = `perspective(600px) rotateX(${rx}deg) rotateY(${ry}deg) scale3d(1.06,1.06,1.06)`;
-    el.style.transition = 'border-color .3s,box-shadow .3s,transform .05s';
-    if (holoRef.current) {
-      holoRef.current.style.setProperty('--mx', `${x * 100}%`);
-      holoRef.current.style.setProperty('--my', `${y * 100}%`);
+    const x = (e.clientX - r.left) / r.width;   // 0–1
+    const y = (e.clientY - r.top) / r.height;    // 0–1
+    const rotX = (y - 0.5) * -28;
+    const rotY = (x - 0.5) * 28;
+
+    // Apply transform to wrapper (not to .card which has overflow:hidden)
+    el.style.transform = `perspective(700px) rotateX(${rotX}deg) rotateY(${rotY}deg) scale(1.07)`;
+    el.style.transition = 'transform .08s linear';
+
+    // Dynamic shadow matching tilt direction
+    el.style.filter = `drop-shadow(${-rotY * 0.4}px ${rotX * 0.3 + 16}px 24px rgba(0,0,0,.6))`;
+
+    // Scanflip-style glare — bright spot tracking the mouse
+    if (glareRef.current) {
+      glareRef.current.style.background = `
+        radial-gradient(ellipse 65% 55% at ${x * 100}% ${y * 100}%,
+          rgba(255,255,255,.38) 0%,
+          rgba(255,255,255,.1) 35%,
+          transparent 70%
+        ),
+        linear-gradient(
+          ${135 + rotY * 1.5}deg,
+          rgba(${200 + rotY * 2},${150 - rotX * 2},${120 + rotX * 2},.08) 0%,
+          transparent 60%
+        )
+      `;
+      glareRef.current.style.opacity = '1';
     }
-    cancelAnimationFrame(raf.current);
-    raf.current = requestAnimationFrame(() => {
-      haRef.current = (haRef.current + 2) % 360;
-      if (holoRef.current) holoRef.current.style.setProperty('--ha', `${haRef.current}deg`);
-    });
   }, [listMode]);
 
-  const onLeave = useCallback(() => {
-    if (!ref.current) return;
-    ref.current.style.transform = '';
-    ref.current.style.transition = 'border-color .3s,box-shadow .3s,transform .6s cubic-bezier(.23,1,.32,1)';
+  const onMouseLeave = useCallback(() => {
+    const el = wrapRef.current; if (!el) return;
+    el.style.transform = '';
+    el.style.transition = 'transform .7s cubic-bezier(.23,1,.32,1)';
+    el.style.filter = '';
+    if (glareRef.current) glareRef.current.style.opacity = '0';
   }, []);
 
   const handleClick = (e) => {
@@ -356,39 +480,38 @@ function TiltCard({ card, onToggle, onEdit, onDelete, onZoom, listMode, selMode,
 
   return (
     <div
-      className={`card-wrap${selMode ? ' sel-mode' : ''}${isDraggable ? ' draggable-wrap' : ''}${dragOver ? ' drag-over' : ''}`}
+      ref={wrapRef}
+      className={`tilt-wrap${selMode ? ' sel-mode' : ''}${dragOver ? ' drag-over' : ''}`}
+      onMouseMove={onMouseMove}
+      onMouseLeave={onMouseLeave}
       draggable={isDraggable}
       onDragStart={onDragStart}
       onDragOver={onDragOver}
       onDragEnd={onDragEnd}
       onDrop={onDrop}
-      style={isDraggable ? { cursor: 'grab' } : {}}
+      style={{ cursor: isDraggable ? 'grab' : 'pointer' }}
     >
-      {/* Checkbox */}
-      <div
-        className={`card-checkbox${selected ? ' checked' : ''}`}
-        onClick={e => { e.stopPropagation(); onSelect(card.id); }}
-      />
-      <div
-        ref={ref}
-        className={`card${card.obtained ? ' got' : ''}`}
-        onMouseMove={onMove}
-        onMouseLeave={onLeave}
-        onClick={handleClick}
-      >
+      <div className={`card-checkbox${selected ? ' checked' : ''}`}
+        onClick={e => { e.stopPropagation(); onSelect(card.id); }} />
+
+      <div className={`card${card.obtained ? ' got' : ''}`} onClick={handleClick}>
         <div className="card-img-box">
           {card.src
             ? <img className="card-img" src={card.src} alt={card.name} loading="lazy" />
             : <div style={{ width: '100%', height: '100%', background: 'var(--surface2)', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: .15, fontSize: '2rem' }}>🃏</div>
           }
           {card.obtained && <div className="card-badge">✓</div>}
+          <div ref={glareRef} className="card-glare" />
         </div>
-        {!listMode && <div className="card-holo" ref={holoRef} />}
         <div className="card-foot">
           <div className="card-name">{card.name || 'Sans nom'}</div>
-          {(card.series || card.number) && <div className="card-meta">{[card.series?.replace(/^EX /i, ''), card.number].filter(Boolean).join(' · ')}</div>}
+          <div className="card-meta">
+            {[card.series, card.number].filter(Boolean).join(' · ')}
+            {card.rarity && <><br /><span className="card-rarity" style={{ color: rarityColor(card.rarity) }}>{card.rarity}</span></>}
+          </div>
           <div className="card-acts">
-            <button className={`btn btn-sm${card.obtained ? ' btn-ok' : ''}`} onClick={e => { e.stopPropagation(); onToggle(card.id); }}>
+            <button className={`btn btn-sm${card.obtained ? ' btn-ok' : ''}`}
+              onClick={e => { e.stopPropagation(); onToggle(card.id); }}>
               {card.obtained ? '✓ Obtenue' : '+ Marquer'}
             </button>
             <button className="btn btn-sm btn-ghost" onClick={e => { e.stopPropagation(); onEdit(card); }}>✏️</button>
@@ -403,19 +526,32 @@ function TiltCard({ card, onToggle, onEdit, onDelete, onZoom, listMode, selMode,
 // ─── ZOOM MODAL ───────────────────────────────────────────────────────────────
 function ZoomModal({ card, onClose }) {
   useEffect(() => {
+    if (!card) return;
     const h = e => e.key === 'Escape' && onClose();
     document.addEventListener('keydown', h);
     return () => document.removeEventListener('keydown', h);
-  }, [onClose]);
+  }, [card, onClose]);
+
   if (!card) return null;
+  const src = card.src || (card.image ? `${card.image}/high.webp` : null);
+
   return (
-    <div className={`zoom-overlay${card ? ' open' : ''}`} onClick={onClose}>
-      <div className="zoom-img-wrap" onClick={e => e.stopPropagation()}>
+    <div className="zoom-overlay open" onClick={onClose}>
+      <div className="zoom-inner" onClick={e => e.stopPropagation()}>
         <div className="zoom-close" onClick={onClose}>✕</div>
-        {card.src
-          ? <img className="zoom-img" src={card.src} alt={card.name} />
-          : <div style={{ width: 300, height: 420, background: 'var(--surface)', borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '4rem', opacity: .3 }}>🃏</div>
+        {src
+          ? <img className="zoom-img" src={src} alt={card.name} />
+          : <div style={{ width: 280, height: 390, background: 'var(--surface)', borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '3rem', opacity: .3 }}>🃏</div>
         }
+        {(card.name || card.series || card.rarity) && (
+          <div className="zoom-info">
+            {card.name && <div className="zoom-info-name">{card.name}</div>}
+            <div className="zoom-info-meta">
+              {[card.series, card.number].filter(Boolean).join(' · ')}
+              {card.rarity && <span style={{ color: rarityColor(card.rarity) }}>{card.series || card.number ? ' · ' : ''}{card.rarity}</span>}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -431,13 +567,30 @@ function PickCollectionModal({ open, collections, defaultId, onClose, onConfirm 
       <div className="modal">
         <div className="modal-title">🗂 Choisir une collection</div>
         <div className="field"><label>Ajouter dans</label>
-          <select value={sel} onChange={e => setSel(e.target.value)}>
+          <select value={sel || ''} onChange={e => setSel(e.target.value)}>
             {collections.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </div>
         <div className="modal-acts">
           <button className="btn btn-ghost" onClick={onClose}>Annuler</button>
-          <button className="btn btn-red" onClick={() => onConfirm(sel)}>Confirmer</button>
+          <button className="btn btn-red" onClick={() => sel && onConfirm(sel)}>Confirmer</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── CONFIRM MODAL ────────────────────────────────────────────────────────────
+function ConfirmModal({ open, title, message, onConfirm, onClose }) {
+  if (!open) return null;
+  return (
+    <div className="overlay open" onClick={e => e.target.classList.contains('overlay') && onClose()}>
+      <div className="modal">
+        <div className="modal-title">{title || '⚠️ Confirmation'}</div>
+        {message && <p className="modal-body">{message}</p>}
+        <div className="modal-acts">
+          <button className="btn btn-ghost" onClick={onClose}>Annuler</button>
+          <button className="btn btn-danger" onClick={() => { onConfirm(); onClose(); }}>Supprimer</button>
         </div>
       </div>
     </div>
@@ -474,13 +627,17 @@ function AuthPage({ onLogin }) {
     if (!email) return setErr('Entrez votre email.');
     setL(true); setErr('');
     const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin + '?reset=1' });
-    setL(false); if (error) return setErr(error.message); setOk('Email de réinitialisation envoyé !');
+    setL(false); if (error) return setErr(error.message); setOk('Email envoyé ! Vérifiez votre boîte mail.');
   };
 
   return (
     <div className="auth-page">
       <div className="auth-box">
-        <div className="auth-logo"><div className="logo"><div className="logo-icon">◆</div>Cartodex</div></div>
+        <div className="auth-logo">
+          <div className="logo" style={{ fontSize: 'clamp(1.3rem,4vw,1.8rem)' }}>
+            <LogoImg size={36} />Cartodex
+          </div>
+        </div>
         {err && <div className="auth-error">{err}</div>}
         {ok && <div className="auth-success">{ok}</div>}
         {view === 'login' && <>
@@ -517,12 +674,13 @@ function ResetPasswordPage({ onDone }) {
     if (pw.length < 8) return setErr('Au moins 8 caractères.');
     setL(true); setErr('');
     const { error } = await supabase.auth.updateUser({ password: pw });
-    setL(false); if (error) return setErr(error.message); setOk('Mot de passe mis à jour !'); setTimeout(onDone, 2000);
+    setL(false); if (error) return setErr(error.message);
+    setOk('Mot de passe mis à jour !'); setTimeout(onDone, 2000);
   };
   return (
     <div className="auth-page">
       <div className="auth-box">
-        <div className="auth-logo"><div className="logo"><div className="logo-icon">◆</div>Cartodex</div></div>
+        <div className="auth-logo"><div className="logo"><LogoImg size={32} />Cartodex</div></div>
         {err && <div className="auth-error">{err}</div>}
         {ok && <div className="auth-success">{ok}</div>}
         <div className="auth-title">Nouveau mot de passe</div>
@@ -542,103 +700,142 @@ function CollectionPage({ collection, allCollections, onUpdate, onAddToCollectio
   const [zoomCard, setZoomCard] = useState(null);
   const [impOpen, setImpOpen] = useState(false);
   const [impSets, setImpSets] = useState([]); const [impSetId, setImpSetId] = useState('');
-  const [impState, setImpState] = useState('idle'); const [impCards, setImpCards] = useState([]); const [impErr, setImpErr] = useState('');
+  const [impState, setImpState] = useState('idle'); const [impCards, setImpCards] = useState([]);
+  const [impErr, setImpErr] = useState('');
+  // Import card selection: null = all selected, Set = specific ids selected
+  const [impSel, setImpSel] = useState(null);
   const [drag, setDrag] = useState(false);
   const [pickModal, setPickModal] = useState(null);
-  // Multi-select
   const [selMode, setSelMode] = useState(false);
   const [selected, setSelected] = useState(new Set());
-  // Drag-to-reorder
   const dragIdx = useRef(null);
   const [dragOverIdx, setDragOverIdx] = useState(null);
   const fileRef = useRef(null);
 
-  // Reset selection when leaving sel mode
   useEffect(() => { if (!selMode) setSelected(new Set()); }, [selMode]);
+  useEffect(() => { if (impState !== 'preview') setImpSel(null); }, [impState]);
 
+  // Load sets list for import
   useEffect(() => {
     if (!impOpen || impSets.length) return;
-    fetch(`${TCGDEX}/sets`).then(r => r.json()).then(data => {
-      const ex = data.filter(s => s.serie?.id === 'ex' || s.id?.startsWith('ex'));
-      const list = ex.length > 0 ? ex : data; setImpSets(list); if (list.length) setImpSetId(list[0].id);
-    }).catch(() => {
-      const fb = [{ id: 'ex11', name: 'EX Espèces Delta' }, { id: 'ex13', name: 'EX Fantômes Holon' }, { id: 'ex15', name: "EX Île des Dragons" }, { id: 'ex14', name: 'EX Gardiens de Cristal' }, { id: 'ex12', name: 'EX Legend Maker' }, { id: 'ex10', name: 'EX Forces Invisibles' }, { id: 'ex8', name: 'EX Deoxys' }, { id: 'ex16', name: 'EX Power Keepers' }];
-      setImpSets(fb); setImpSetId('ex11');
-    });
+    fetch(`${TCGDEX}/sets`)
+      .then(r => r.json())
+      .then(data => {
+        // Sort by releaseDate descending
+        const sorted = [...data].sort((a, b) => (b.releaseDate || '').localeCompare(a.releaseDate || ''));
+        setImpSets(sorted);
+        if (sorted.length) setImpSetId(sorted[0].id);
+      })
+      .catch(() => {
+        const fb = [{ id: 'ex11', name: 'EX Espèces Delta' }, { id: 'swsh1', name: 'Épée et Bouclier' }, { id: 'sv1', name: 'Écarlate et Violet' }];
+        setImpSets(fb); setImpSetId('ex11');
+      });
   }, [impOpen]);
 
   const fetchPreview = async () => {
     if (!impSetId) return; setImpState('loading'); setImpErr('');
     try {
-      const res = await fetch(`${TCGDEX}/sets/${impSetId}`); if (!res.ok) throw new Error(`Erreur ${res.status}`);
-      const data = await res.json(); if (!data.cards?.length) throw new Error('Aucune carte trouvée.');
-      setImpCards(data.cards); setImpState('preview');
+      const res = await fetch(`${TCGDEX}/sets/${impSetId}`);
+      if (!res.ok) throw new Error(`Erreur ${res.status}`);
+      const data = await res.json();
+      if (!data.cards?.length) throw new Error('Aucune carte trouvée.');
+      setImpCards(data.cards); setImpSel(null); setImpState('preview');
     } catch (e) { setImpErr(e.message); setImpState('error'); }
   };
+
+  // Toggle a card in import selection
+  const toggleImpCard = (id) => {
+    setImpSel(prev => {
+      const base = prev === null ? new Set(impCards.map(c => c.id)) : new Set(prev);
+      base.has(id) ? base.delete(id) : base.add(id);
+      return base;
+    });
+  };
+  const impSelCount = impSel === null ? impCards.length : impSel.size;
+  const getImpCards = () => impSel === null ? impCards : impCards.filter(c => impSel.has(c.id));
 
   const doImport = (targetColId) => {
     const targetCol = allCollections.find(c => c.id === targetColId); if (!targetCol) return;
     const existing = new Set(targetCol.cards.map(c => c.tcgId).filter(Boolean));
-    const toAdd = impCards.filter(c => !existing.has(c.id)).map(c => ({ id: `tcg-${c.id}-${Math.random()}`, tcgId: c.id, src: c.image ? `${c.image}/high.webp` : '', name: c.name || c.id, series: impSets.find(s => s.id === impSetId)?.name || impSetId, number: c.localId || '', obtained: false }));
-    if (!toAdd.length) { showToast('Toutes ces cartes sont déjà dans cette collection', '#c8a448'); return; }
-    onAddToCollection(targetColId, toAdd); showToast(`${toAdd.length} cartes importées ✦`);
-    setImpState('idle'); setImpCards([]); setPickModal(null);
+    const source = getImpCards();
+    const toAdd = source.filter(c => !existing.has(c.id)).map(c => ({
+      id: `tcg-${c.id}-${Math.random()}`, tcgId: c.id,
+      src: c.image ? `${c.image}/high.webp` : '',
+      name: c.name || c.id,
+      series: impSets.find(s => s.id === impSetId)?.name || impSetId,
+      number: c.localId || '',
+      rarity: c.rarity || '',
+      obtained: false,
+    }));
+    if (!toAdd.length) { showToast('Toutes ces cartes sont déjà dans cette collection', '#c8a448'); setPickModal(null); return; }
+    onAddToCollection(targetColId, toAdd);
+    showToast(`${toAdd.length} carte${toAdd.length > 1 ? 's' : ''} importée${toAdd.length > 1 ? 's' : ''} ✦`);
+    setImpState('idle'); setImpCards([]); setImpSel(null); setPickModal(null);
   };
 
-  const doUpload = (targetColId, newCards) => { onAddToCollection(targetColId, newCards); showToast(`${newCards.length} carte${newCards.length > 1 ? 's' : ''} ajoutée${newCards.length > 1 ? 's' : ''} ✦`); setPickModal(null); };
+  const doUpload = (targetColId, newCards) => {
+    onAddToCollection(targetColId, newCards);
+    showToast(`${newCards.length} carte${newCards.length > 1 ? 's' : ''} ajoutée${newCards.length > 1 ? 's' : ''} ✦`);
+    setPickModal(null);
+  };
 
   const handleFiles = (files) => {
     const imgs = Array.from(files).filter(f => f.type.startsWith('image/')); if (!imgs.length) return;
     let done = 0; const news = [];
-    imgs.forEach(file => { const r = new FileReader(); r.onload = ev => { news.push({ id: `local-${Date.now()}-${Math.random()}`, src: ev.target.result, name: file.name.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' '), series: '', number: '', obtained: false }); if (++done === imgs.length) { if (allCollections.length > 1) setPickModal({ type: 'upload', data: news }); else doUpload(collection.id, news); } }; r.readAsDataURL(file); });
+    imgs.forEach(file => {
+      const r = new FileReader(); r.onload = ev => {
+        news.push({ id: `local-${Date.now()}-${Math.random()}`, src: ev.target.result, name: file.name.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' '), series: '', number: '', rarity: '', obtained: false });
+        if (++done === imgs.length) {
+          if (allCollections.length > 1) setPickModal({ type: 'upload', data: news });
+          else doUpload(collection.id, news);
+        }
+      }; r.readAsDataURL(file);
+    });
   };
 
-  // Card actions
-  const toggleObtained = id => { const next = cards.map(c => c.id === id ? { ...c, obtained: !c.obtained } : c); onUpdate({ ...collection, cards: next }); const c = next.find(x => x.id === id); showToast(c.obtained ? 'Carte obtenue ✦' : 'Marquée manquante'); };
+  const toggleObtained = id => {
+    const next = cards.map(c => c.id === id ? { ...c, obtained: !c.obtained } : c);
+    onUpdate({ ...collection, cards: next });
+    const c = next.find(x => x.id === id);
+    showToast(c.obtained ? 'Carte obtenue ✦' : 'Marquée manquante');
+  };
   const deleteCard = id => { onUpdate({ ...collection, cards: cards.filter(c => c.id !== id) }); showToast('Carte supprimée', '#c82828'); };
-  const openEdit = card => setModal({ id: card.id, name: card.name, series: card.series, number: card.number });
+  const openEdit = card => setModal({ id: card.id, name: card.name, series: card.series, number: card.number, rarity: card.rarity || '' });
   const saveEdit = () => { onUpdate({ ...collection, cards: cards.map(c => c.id === modal.id ? { ...c, ...modal } : c) }); setModal(null); showToast('Carte mise à jour ✦'); };
 
-  // Selection
   const toggleSelect = id => setSelected(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
   const selectAll = () => setSelected(new Set(visible.map(c => c.id)));
   const clearSel = () => setSelected(new Set());
 
-  // Bulk actions
   const bulkMarkObtained = () => {
-    const next = cards.map(c => selected.has(c.id) ? { ...c, obtained: true } : c);
-    onUpdate({ ...collection, cards: next }); showToast(`${selected.size} cartes marquées obtenues ✦`); clearSel();
+    onUpdate({ ...collection, cards: cards.map(c => selected.has(c.id) ? { ...c, obtained: true } : c) });
+    showToast(`${selected.size} cartes marquées obtenues ✦`); clearSel();
   };
   const bulkMarkMissing = () => {
-    const next = cards.map(c => selected.has(c.id) ? { ...c, obtained: false } : c);
-    onUpdate({ ...collection, cards: next }); showToast(`${selected.size} cartes marquées manquantes`); clearSel();
+    onUpdate({ ...collection, cards: cards.map(c => selected.has(c.id) ? { ...c, obtained: false } : c) });
+    showToast(`${selected.size} cartes marquées manquantes`); clearSel();
   };
   const bulkDelete = () => {
-    if (!confirm(`Supprimer ${selected.size} carte${selected.size > 1 ? 's' : ''} ?`)) return;
     onUpdate({ ...collection, cards: cards.filter(c => !selected.has(c.id)) });
     showToast(`${selected.size} cartes supprimées`, '#c82828'); clearSel();
   };
 
-  // Drag reorder
-  const handleDragStart = (idx) => { dragIdx.current = idx; };
+  // Drag to reorder
+  const handleDragStart = idx => { dragIdx.current = idx; };
   const handleDragOver = (e, idx) => { e.preventDefault(); setDragOverIdx(idx); };
   const handleDragEnd = () => { dragIdx.current = null; setDragOverIdx(null); };
-  const handleDrop = (idx) => {
+  const handleDrop = idx => {
     if (dragIdx.current === null || dragIdx.current === idx) { setDragOverIdx(null); return; }
-    const allCards = [...cards];
-    // Map visible indices back to allCards indices
-    const dragged = visible[dragIdx.current];
-    const target = visible[idx];
-    const fromIdx = allCards.findIndex(c => c.id === dragged.id);
-    const toIdx = allCards.findIndex(c => c.id === target.id);
-    const newCards = [...allCards];
-    newCards.splice(fromIdx, 1);
-    newCards.splice(toIdx, 0, dragged);
-    onUpdate({ ...collection, cards: newCards });
+    const all = [...cards];
+    const dragged = visible[dragIdx.current]; const target = visible[idx];
+    const fi = all.findIndex(c => c.id === dragged.id); const ti = all.findIndex(c => c.id === target.id);
+    const next = [...all]; next.splice(fi, 1); next.splice(ti, 0, dragged);
+    onUpdate({ ...collection, cards: next });
     dragIdx.current = null; setDragOverIdx(null);
   };
 
-  const total = cards.length, obtained = cards.filter(c => c.obtained).length, pct = total === 0 ? 0 : Math.round((obtained / total) * 100);
+  const total = cards.length, obtained = cards.filter(c => c.obtained).length;
+  const pct = total === 0 ? 0 : Math.round((obtained / total) * 100);
   const visible = filter === 'obtained' ? cards.filter(c => c.obtained) : filter === 'missing' ? cards.filter(c => !c.obtained) : cards;
   const layouts = [{ id: 'g6', icon: '⋮⋮⋮' }, { id: 'g4', icon: '⊞' }, { id: 'g3', icon: '▦' }, { id: 'g2', icon: '◫' }, { id: 'glist', icon: '☰' }];
   const filters = [{ id: 'all', label: 'Toutes' }, { id: 'obtained', label: 'Obtenues' }, { id: 'missing', label: 'Manquantes' }];
@@ -655,7 +852,7 @@ function CollectionPage({ collection, allCollections, onUpdate, onAddToCollectio
           <button className={`btn btn-sm${selMode ? ' btn-red' : ''}`} onClick={() => setSelMode(v => !v)}>
             {selMode ? '✕ Quitter sélection' : '☑ Sélectionner'}
           </button>
-          {total > 0 && <button className="btn btn-danger btn-sm" onClick={() => { if (confirm('Vider cette collection ?')) onUpdate({ ...collection, cards: [] }) }}>Vider</button>}
+          {total > 0 && <button className="btn btn-danger btn-sm" onClick={() => onUpdate({ ...collection, cards: [] })}>Vider</button>}
         </div>
       </div>
 
@@ -671,61 +868,85 @@ function CollectionPage({ collection, allCollections, onUpdate, onAddToCollectio
         <div className="tbar-sep" />
         {filters.map(f => <button key={f.id} className={`chip${filter === f.id ? ' on' : ''}`} onClick={() => setFilter(f.id)}>{f.label}</button>)}
         {selMode && <><div className="tbar-sep" /><button className="btn btn-ghost btn-sm" onClick={selectAll}>Tout</button><button className="btn btn-ghost btn-sm" onClick={clearSel}>Aucun</button></>}
-        {!selMode && <><div className="tbar-sep" /><span style={{ fontSize: '.68rem', color: 'var(--muted)' }}>⠿ Glisser-déposer pour réordonner</span></>}
+        {!selMode && <><div className="tbar-sep" /><span style={{ fontSize: '.65rem', color: 'var(--muted)' }}>⠿ Glisser-déposer pour réordonner</span></>}
       </div>
 
       {/* Import TCGdex */}
       <div className="imp-panel">
         <div className={`imp-head${impOpen ? ' open' : ''}`} onClick={() => setImpOpen(v => !v)}>
-          <span>🎴</span><span>Importer une extension depuis TCGdex</span><span className="imp-arrow">▼</span>
+          <span>🎴</span><span>Importer depuis TCGdex</span><span className="imp-arrow">▼</span>
         </div>
         {impOpen && <div className="imp-body">
-          {impSets.length === 0 ? <div className="spinner-wrap"><div className="spinner" />Chargement…</div> : <>
-            <select className="imp-select" value={impSetId} onChange={e => { setImpSetId(e.target.value); setImpState('idle'); setImpCards([]); }}>
-              {impSets.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
-            <p className="imp-info">Images via <strong>api.tcgdex.net</strong> — open source, français. Les doublons sont ignorés.</p>
-          </>}
-          {impState === 'idle' && impSets.length > 0 && <button className="btn btn-red" onClick={fetchPreview}>🔍 Prévisualiser</button>}
+          {impSets.length === 0
+            ? <div className="spinner-wrap"><div className="spinner" />Chargement des extensions…</div>
+            : <>
+              <select className="imp-select" value={impSetId} onChange={e => { setImpSetId(e.target.value); setImpState('idle'); setImpCards([]); setImpSel(null); }}>
+                {impSets.map(s => <option key={s.id} value={s.id}>{s.name} ({s.id})</option>)}
+              </select>
+              <p className="imp-info">Images via <strong>api.tcgdex.net</strong> · Les doublons sont ignorés</p>
+            </>
+          }
+          {impState === 'idle' && impSets.length > 0 && <button className="btn btn-red" onClick={fetchPreview}>🔍 Prévisualiser l'extension</button>}
           {impState === 'loading' && <div className="spinner-wrap"><div className="spinner" />Chargement…</div>}
-          {impState === 'error' && <div><p style={{ color: 'var(--red2)', fontSize: '.78rem', marginBottom: 10 }}>Erreur : {impErr}</p><button className="btn" onClick={() => setImpState('idle')}>Réessayer</button></div>}
-          {impState === 'preview' && <div>
-            <p className="imp-info"><strong style={{ color: 'var(--red2)' }}>{impCards.length} cartes</strong> trouvées :</p>
+          {impState === 'error' && <div><p style={{ color: 'var(--red2)', fontSize: '.78rem', marginBottom: 10 }}>❌ {impErr}</p><button className="btn" onClick={() => setImpState('idle')}>Réessayer</button></div>}
+          {impState === 'preview' && <>
+            {/* Selection controls */}
+            <div className="imp-sel-bar">
+              <button className="btn btn-xs" onClick={() => setImpSel(null)}>Tout sélectionner</button>
+              <button className="btn btn-xs" onClick={() => setImpSel(new Set())}>Tout désélectionner</button>
+              <span className="imp-sel-ct">{impSelCount} / {impCards.length} sélectionnée{impSelCount > 1 ? 's' : ''}</span>
+            </div>
+            {/* Preview grid — clickable to toggle selection */}
             <div className="imp-preview">
-              {impCards.map(c => <div key={c.id} className="imp-thumb">{c.image ? <img src={`${c.image}/high.webp`} alt={c.name} loading="lazy" /> : <div style={{ background: 'var(--surface2)', width: '100%', height: '100%' }} />}</div>)}
+              {impCards.map(c => {
+                const isSel = impSel === null || impSel.has(c.id);
+                return (
+                  <div key={c.id} className={`imp-thumb${isSel ? ' sel' : ''}`} onClick={() => toggleImpCard(c.id)}>
+                    {c.image ? <img src={`${c.image}/high.webp`} alt={c.name} loading="lazy" /> : <div style={{ width: '100%', height: '100%', background: 'var(--surface)' }} />}
+                    <div className="imp-thumb-chk" />
+                  </div>
+                );
+              })}
             </div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <button className="btn btn-red" onClick={() => allCollections.length > 1 ? setPickModal({ type: 'import' }) : doImport(collection.id)}>⬇ Importer ({impCards.length} cartes)</button>
-              <button className="btn btn-ghost" onClick={() => { setImpState('idle'); setImpCards([]); }}>Annuler</button>
+              <button className="btn btn-red" disabled={impSelCount === 0}
+                onClick={() => allCollections.length > 1 ? setPickModal({ type: 'import' }) : doImport(collection.id)}>
+                ⬇ Importer ({impSelCount})
+              </button>
+              <button className="btn btn-ghost" onClick={() => { setImpState('idle'); setImpCards([]); setImpSel(null); }}>Annuler</button>
             </div>
-          </div>}
+          </>}
         </div>}
       </div>
 
-      {/* Upload */}
+      {/* Upload zone */}
       <div className="upsec">
-        <label className={`upzone${drag ? ' drag' : ''}`} onDragOver={e => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)} onDrop={e => { e.preventDefault(); setDrag(false); handleFiles(e.dataTransfer.files); }}>
+        <label className={`upzone${drag ? ' drag' : ''}`}
+          onDragOver={e => { e.preventDefault(); setDrag(true); }}
+          onDragLeave={() => setDrag(false)}
+          onDrop={e => { e.preventDefault(); setDrag(false); handleFiles(e.dataTransfer.files); }}>
           <input type="file" multiple accept="image/*" onChange={e => { handleFiles(e.target.files); e.target.value = ''; }} />
           <div className="up-inner"><div className="up-orb">🃏</div><div><div className="up-t1">Déposer vos photos de cartes ici</div><div className="up-t2"><span>Cliquer pour sélectionner</span> ou glisser-déposer · PNG, JPG, WEBP</div></div></div>
         </label>
       </div>
 
-      {/* Cards */}
+      {/* Card grid */}
       <div className="col-wrap">
         <div className="sec-title">{visible.length} carte{visible.length !== 1 ? 's' : ''}</div>
         {visible.length === 0
-          ? <div className="empty"><span className="empty-icon">{filter === 'missing' && total > 0 ? '🏆' : '◈'}</span><h3>{filter === 'missing' && total > 0 ? 'Collection complète !' : 'Aucune carte'}</h3><p>{filter === 'missing' && total > 0 ? 'Toutes vos cartes sont obtenues.' : 'Importez une extension ou ajoutez vos photos.'}</p></div>
+          ? <div className="empty">
+            <span className="empty-icon">{filter === 'missing' && total > 0 ? '🏆' : '◈'}</span>
+            <h3>{filter === 'missing' && total > 0 ? 'Collection complète !' : 'Aucune carte'}</h3>
+            <p>{filter === 'missing' && total > 0 ? 'Toutes vos cartes sont obtenues.' : 'Importez une extension ou ajoutez vos photos.'}</p>
+          </div>
           : <div className={`grid ${layout}`}>
             {visible.map((card, i) => (
-              <div key={card.id} style={{ animationDelay: `${Math.min(i * .025, .5)}s` }}>
-                <TiltCard
-                  card={card} onToggle={toggleObtained} onEdit={openEdit} onDelete={deleteCard} onZoom={setZoomCard}
+              <div key={card.id} style={{ animationDelay: `${Math.min(i * .022, .45)}s` }}>
+                <TiltCard card={card} onToggle={toggleObtained} onEdit={openEdit} onDelete={deleteCard} onZoom={setZoomCard}
                   listMode={layout === 'glist'} selMode={selMode} selected={selected.has(card.id)} onSelect={toggleSelect}
-                  draggable={!selMode && filter === 'all'}
-                  onDragStart={() => handleDragStart(i)}
-                  onDragOver={e => handleDragOver(e, i)}
-                  onDragEnd={handleDragEnd}
-                  onDrop={() => handleDrop(i)}
+                  isDraggable={!selMode && filter === 'all'}
+                  onDragStart={() => handleDragStart(i)} onDragOver={e => handleDragOver(e, i)}
+                  onDragEnd={handleDragEnd} onDrop={() => handleDrop(i)}
                   dragOver={dragOverIdx === i && dragIdx.current !== null && dragIdx.current !== i}
                 />
               </div>
@@ -734,12 +955,12 @@ function CollectionPage({ collection, allCollections, onUpdate, onAddToCollectio
         }
       </div>
 
-      {/* Bulk action bar */}
+      {/* Bulk bar */}
       <div className={`bulk-bar${selMode && selected.size > 0 ? ' show' : ''}`}>
         <span className="bulk-count">{selected.size} sélectionnée{selected.size > 1 ? 's' : ''}</span>
         <button className="btn btn-sm btn-green" onClick={bulkMarkObtained}>✓ Obtenues</button>
         <button className="btn btn-sm" style={{ background: 'transparent', borderColor: 'var(--border2)', color: 'var(--text2)' }} onClick={bulkMarkMissing}>○ Manquantes</button>
-        <button className="btn btn-sm btn-danger" onClick={bulkDelete}>✕ Supprimer</button>
+        <button className="btn btn-sm btn-danger" onClick={() => { if (window.confirm(`Supprimer ${selected.size} carte${selected.size > 1 ? 's' : ''} ?`)) bulkDelete(); }}>✕ Supprimer</button>
         <button className="btn btn-sm btn-ghost" onClick={clearSel}>Annuler</button>
       </div>
 
@@ -747,15 +968,23 @@ function CollectionPage({ collection, allCollections, onUpdate, onAddToCollectio
       <div className={`overlay${modal ? ' open' : ''}`} onClick={e => e.target.classList.contains('overlay') && setModal(null)}>
         {modal && <div className="modal">
           <div className="modal-title">✦ Modifier la carte</div>
-          {[['Nom', 'name', 'Dracaufeu Holo EX'], ['Série', 'series', 'EX Espèces Delta'], ['Numéro', 'number', '16/113']].map(([lbl, k, ph]) => (
-            <div key={k} className="field"><label>{lbl}</label><input value={modal[k]} placeholder={ph} autoFocus={k === 'name'} onChange={e => setModal(m => ({ ...m, [k]: e.target.value }))} onKeyDown={e => e.key === 'Enter' && saveEdit()} /></div>
+          {[['Nom', 'name', 'Dracaufeu Holo EX'], ['Série', 'series', 'EX Espèces Delta'], ['Numéro', 'number', '16/113'], ['Rareté', 'rarity', 'Rare Holo']].map(([lbl, k, ph]) => (
+            <div key={k} className="field"><label>{lbl}</label>
+              <input value={modal[k] || ''} placeholder={ph} autoFocus={k === 'name'}
+                onChange={e => setModal(m => ({ ...m, [k]: e.target.value }))}
+                onKeyDown={e => e.key === 'Enter' && saveEdit()} />
+            </div>
           ))}
-          <div className="modal-acts"><button className="btn btn-ghost" onClick={() => setModal(null)}>Annuler</button><button className="btn btn-red" onClick={saveEdit}>Enregistrer</button></div>
+          <div className="modal-acts">
+            <button className="btn btn-ghost" onClick={() => setModal(null)}>Annuler</button>
+            <button className="btn btn-red" onClick={saveEdit}>Enregistrer</button>
+          </div>
         </div>}
       </div>
 
       <ZoomModal card={zoomCard} onClose={() => setZoomCard(null)} />
-      <PickCollectionModal open={!!pickModal} collections={allCollections} defaultId={collection.id} onClose={() => setPickModal(null)}
+      <PickCollectionModal open={!!pickModal} collections={allCollections} defaultId={collection.id}
+        onClose={() => setPickModal(null)}
         onConfirm={colId => { if (pickModal?.type === 'import') doImport(colId); else if (pickModal?.type === 'upload') doUpload(colId, pickModal.data); }} />
     </div>
   );
@@ -763,51 +992,79 @@ function CollectionPage({ collection, allCollections, onUpdate, onAddToCollectio
 
 // ─── BROWSE PAGE ──────────────────────────────────────────────────────────────
 function BrowsePage({ allCollections, onAddToCollection, showToast }) {
-  const [sets, setSets] = useState([]);
-  const [selSet, setSelSet] = useState(null);
-  const [setCards, setSetCards] = useState([]);
+  const [series, setSeries] = useState([]);    // All series with their sets
+  const [selSet, setSelSet] = useState(null);  // Currently viewed set
+  const [setCards, setSetCards] = useState([]); // Cards of the selected set
   const [loading, setLoading] = useState(true);
   const [loadingC, setLoadingC] = useState(false);
   const [pickModal, setPickModal] = useState(null);
-  // Multi-select
+  const [zoomCard, setZoomCard] = useState(null);
   const [browseSelected, setBrowseSelected] = useState(new Set());
 
   useEffect(() => {
-    fetch(`${TCGDEX}/sets`).then(r => r.json()).then(d => { setSets(d); setLoading(false); }).catch(() => setLoading(false));
+    // Fetch all series with their sets from TCGdex
+    fetch(`${TCGDEX}/series`)
+      .then(r => r.json())
+      .then(data => {
+        // Reverse so newest series appears first
+        const sorted = Array.isArray(data) ? [...data].reverse() : [];
+        setSeries(sorted.filter(s => s.sets?.length > 0));
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
   }, []);
 
-  // Reset selection on set change
   useEffect(() => { setBrowseSelected(new Set()); }, [selSet]);
 
   const loadSet = async s => {
     setSelSet(s); setLoadingC(true); setSetCards([]);
-    try { const r = await fetch(`${TCGDEX}/sets/${s.id}`); const d = await r.json(); setSetCards(d.cards || []); } catch { }
+    try {
+      const r = await fetch(`${TCGDEX}/sets/${s.id}`);
+      const d = await r.json();
+      setSetCards(d.cards || []);
+    } catch { }
     setLoadingC(false);
   };
 
+  // A card can be added to ANY collection (even if it's already in some)
+  // Check per-target-collection only
   const inAny = tcgId => allCollections.some(col => col.cards.some(c => c.tcgId === tcgId));
-  const toggleBrowseSel = (id) => setBrowseSelected(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
+
+  const toggleBrowseSel = id => setBrowseSelected(prev => {
+    const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s;
+  });
 
   const handleAdd = (cardsToAdd) => {
-    if (allCollections.length > 1) setPickModal({ cards: cardsToAdd });
-    else if (allCollections.length === 1) doAdd(allCollections[0].id, cardsToAdd);
+    if (allCollections.length === 1) doAdd(allCollections[0].id, cardsToAdd);
+    else setPickModal({ cards: cardsToAdd });
   };
 
   const doAdd = (colId, cardsToAdd) => {
     const targetCol = allCollections.find(c => c.id === colId);
-    const existing = new Set(targetCol?.cards.map(c => c.tcgId).filter(Boolean));
-    const toAdd = cardsToAdd.filter(c => !existing.has(c.id)).map(c => ({
-      id: `tcg-${c.id}-${Math.random()}`, tcgId: c.id, src: c.image ? `${c.image}/high.webp` : '',
-      name: c.name || c.id, series: selSet?.name || '', number: c.localId || '', obtained: false,
+    if (!targetCol) return;
+    // Only skip cards already in THIS specific collection
+    const existingInTarget = new Set(targetCol.cards.map(c => c.tcgId).filter(Boolean));
+    const toAdd = cardsToAdd.filter(c => !existingInTarget.has(c.id));
+    const skipped = cardsToAdd.length - toAdd.length;
+
+    if (toAdd.length === 0) {
+      showToast('Ces cartes sont déjà dans cette collection', '#c8a448');
+      setPickModal(null); return;
+    }
+    const mapped = toAdd.map(c => ({
+      id: `tcg-${c.id}-${Math.random()}`, tcgId: c.id,
+      src: c.image ? `${c.image}/high.webp` : '',
+      name: c.name || c.id, series: selSet?.name || '',
+      number: c.localId || '', rarity: c.rarity || '', obtained: false,
     }));
-    if (!toAdd.length) { showToast('Ces cartes sont déjà dans la collection', '#c8a448'); setPickModal(null); return; }
-    onAddToCollection(colId, toAdd);
-    showToast(`${toAdd.length} carte${toAdd.length > 1 ? 's' : ''} ajoutée${toAdd.length > 1 ? 's' : ''} ✦`);
+    onAddToCollection(colId, mapped);
+    const msg = skipped > 0
+      ? `${toAdd.length} ajoutée${toAdd.length > 1 ? 's' : ''} · ${skipped} doublon${skipped > 1 ? 's' : ''} ignoré${skipped > 1 ? 's' : ''} ✦`
+      : `${toAdd.length} carte${toAdd.length > 1 ? 's' : ''} ajoutée${toAdd.length > 1 ? 's' : ''} ✦`;
+    showToast(msg);
     setBrowseSelected(new Set()); setPickModal(null);
   };
 
-  const exSets = sets.filter(s => s.serie?.id === 'ex' || s.id?.startsWith('ex'));
-  const displaySets = exSets.length > 0 ? exSets : sets;
   const selectedCardsData = setCards.filter(c => browseSelected.has(c.id));
 
   return (
@@ -815,48 +1072,78 @@ function BrowsePage({ allCollections, onAddToCollection, showToast }) {
       <div className="page-hdr">
         <div>
           <div className="page-title">Parcourir les <span>Extensions</span></div>
-          {selSet && <button className="btn btn-ghost btn-sm" style={{ marginTop: 6 }} onClick={() => { setSelSet(null); setSetCards([]); }}>← Toutes les extensions</button>}
+          {selSet && (
+            <button className="btn btn-ghost btn-sm" style={{ marginTop: 6 }}
+              onClick={() => { setSelSet(null); setSetCards([]); }}>
+              ← Toutes les extensions
+            </button>
+          )}
         </div>
-        {selSet && <div style={{ fontSize: '.78rem', color: 'var(--muted)' }}>{setCards.length} cartes</div>}
+        {selSet && <div style={{ fontSize: '.78rem', color: 'var(--muted)' }}>{setCards.length} cartes · {selSet.name}</div>}
       </div>
 
       {!selSet ? (
-        loading ? <div className="spinner-wrap" style={{ padding: 40 }}><div className="spinner" />Chargement…</div>
-          : <div className="browse-sets-grid">
-            {displaySets.map(s => (
-              <div key={s.id} className="set-card" onClick={() => loadSet(s)}>
-                {s.logo && (
-                  <div className="set-card-logo">
-                    <img src={`${s.logo}.webp`} alt={s.name} onError={e => e.target.style.display = 'none'} />
-                  </div>
-                )}
-                <div className="set-card-name">{s.name}</div>
-                <div className="set-card-meta">{s.cardCount?.total ?? '?'} cartes · {s.releaseDate?.split('-')[0] ?? '—'}</div>
-                <div className="set-card-badge">{s.id}</div>
+        loading
+          ? <div className="spinner-wrap" style={{ padding: 40 }}><div className="spinner" />Chargement des séries…</div>
+          : series.length === 0
+          ? <div className="empty"><span className="empty-icon">📦</span><h3>Aucune extension disponible</h3><p>Impossible de charger les données TCGdex.</p></div>
+          : <div className="browse-scroll">
+            {series.map(serie => (
+              <div key={serie.id} className="serie-section">
+                <div className="serie-header">
+                  {serie.logo && (
+                    <img className="serie-header-logo" src={`${serie.logo}.webp`} alt={serie.name}
+                      onError={e => e.target.style.display = 'none'} />
+                  )}
+                  <span className="serie-name">{serie.name}</span>
+                </div>
+                <div className="browse-sets-grid">
+                  {(serie.sets || []).map(s => (
+                    <div key={s.id} className="set-card" onClick={() => loadSet(s)}>
+                      {s.logo && (
+                        <div className="set-card-logo">
+                          <img src={`${s.logo}.webp`} alt={s.name}
+                            onError={e => e.target.parentElement.style.display = 'none'} />
+                        </div>
+                      )}
+                      <div className="set-card-name">{s.name}</div>
+                      <div className="set-card-meta">{s.cardCount?.total ?? s.cardCount ?? '?'} cartes · {s.releaseDate?.split('-')[0] ?? '—'}</div>
+                      <div className="set-card-badge">{s.id}</div>
+                    </div>
+                  ))}
+                </div>
               </div>
             ))}
           </div>
-      ) : loadingC ? <div className="spinner-wrap" style={{ padding: 40 }}><div className="spinner" />Chargement des cartes…</div>
+      ) : loadingC
+        ? <div className="spinner-wrap" style={{ padding: 40 }}><div className="spinner" />Chargement des cartes…</div>
         : <div className="browse-grid">
           {setCards.map((c, i) => {
-            const already = inAny(c.id);
+            const inCol = inAny(c.id);
             const isSel = browseSelected.has(c.id);
             return (
               <div key={c.id} className={`browse-card${isSel ? ' sel' : ''}`}
-                style={{ animationDelay: `${Math.min(i * .018, .4)}s` }}
-                onClick={() => !already && toggleBrowseSel(c.id)}>
+                style={{ animationDelay: `${Math.min(i * .016, .4)}s` }}
+                onClick={() => setZoomCard({ ...c, series: selSet?.name })}>
                 <div className="card-img-box">
-                  {c.image ? <img className="card-img" src={`${c.image}/high.webp`} alt={c.name} loading="lazy" style={{ filter: 'none' }} /> : <div style={{ width: '100%', height: '100%', background: 'var(--surface2)' }} />}
-                  {already ? <div className="browse-in-col">✓</div> : <div className={`browse-chk${isSel ? '' : ''}`} />}
-                  {!already && (
-                    <button className={`browse-add-hover${isSel ? ' hidden' : ''}`} onClick={e => { e.stopPropagation(); handleAdd([c]); }}>
-                      <div className="browse-add-inner">＋ Ajouter</div>
-                    </button>
-                  )}
+                  {c.image
+                    ? <img className="card-img" src={`${c.image}/high.webp`} alt={c.name} loading="lazy" style={{ filter: 'none' }} />
+                    : <div style={{ width: '100%', height: '100%', background: 'var(--surface2)' }} />
+                  }
+                  {/* ✓ badge: indicates "in at least one collection" but doesn't block adding */}
+                  {inCol && <div className="browse-in-col" title="Dans une collection">✓</div>}
+                  <div className="browse-chk" onClick={e => { e.stopPropagation(); toggleBrowseSel(c.id); }} style={{ pointerEvents: 'all' }} />
+                  {/* Add button always available */}
+                  <button className="browse-add-btn" onClick={e => { e.stopPropagation(); handleAdd([c]); }}>
+                    <div className="browse-add-inner">＋ Ajouter</div>
+                  </button>
                 </div>
                 <div className="card-foot">
                   <div className="card-name">{c.name || c.id}</div>
-                  <div className="card-meta">{c.localId}</div>
+                  <div className="card-meta">
+                    {c.localId}
+                    {c.rarity && <><br /><span className="card-rarity" style={{ color: rarityColor(c.rarity) }}>{c.rarity}</span></>}
+                  </div>
                 </div>
               </div>
             );
@@ -864,15 +1151,16 @@ function BrowsePage({ allCollections, onAddToCollection, showToast }) {
         </div>
       }
 
-      {/* Bulk add bar for browse */}
+      {/* Bulk add bar */}
       <div className={`bulk-bar${browseSelected.size > 0 ? ' show' : ''}`}>
         <span className="bulk-count">{browseSelected.size} sélectionnée{browseSelected.size > 1 ? 's' : ''}</span>
         <button className="btn btn-red btn-sm" onClick={() => handleAdd(selectedCardsData)}>＋ Ajouter à la collection</button>
         <button className="btn btn-ghost btn-sm" onClick={() => setBrowseSelected(new Set())}>Annuler</button>
       </div>
 
-      <PickCollectionModal open={!!pickModal} collections={allCollections} defaultId={allCollections[0]?.id} onClose={() => setPickModal(null)}
-        onConfirm={colId => doAdd(colId, pickModal.cards)} />
+      <ZoomModal card={zoomCard} onClose={() => setZoomCard(null)} />
+      <PickCollectionModal open={!!pickModal} collections={allCollections} defaultId={allCollections[0]?.id}
+        onClose={() => setPickModal(null)} onConfirm={colId => doAdd(colId, pickModal.cards)} />
     </div>
   );
 }
@@ -883,18 +1171,26 @@ function AccountPage({ user, profile, onProfileUpdate, showToast, onLogout }) {
   const [oldPw, setOldPw] = useState(''); const [newPw, setNewPw] = useState('');
   const [l1, setL1] = useState(false); const [l2, setL2] = useState(false);
   const [err1, setErr1] = useState(''); const [err2, setErr2] = useState('');
+
   const savePseudo = async () => {
-    if (pseudo.length < 3) return setErr1('Au moins 3 caractères.'); setL1(true); setErr1('');
-    const { error } = await supabase.from('profiles').update({ pseudo }).eq('id', user.id); setL1(false);
-    if (error) return setErr1(error.message); onProfileUpdate({ ...profile, pseudo }); showToast('Pseudo mis à jour ✦');
+    if (pseudo.length < 3) return setErr1('Au moins 3 caractères.');
+    setL1(true); setErr1('');
+    const { error } = await supabase.from('profiles').update({ pseudo }).eq('id', user.id);
+    setL1(false);
+    if (error) return setErr1(error.message);
+    onProfileUpdate({ ...profile, pseudo }); showToast('Pseudo mis à jour ✦');
   };
   const savePassword = async () => {
-    if (newPw.length < 8) return setErr2('Au moins 8 caractères.'); setL2(true); setErr2('');
+    if (newPw.length < 8) return setErr2('Au moins 8 caractères.');
+    setL2(true); setErr2('');
     const { error: e1 } = await supabase.auth.signInWithPassword({ email: user.email, password: oldPw });
     if (e1) { setL2(false); return setErr2('Mot de passe actuel incorrect.'); }
-    const { error } = await supabase.auth.updateUser({ password: newPw }); setL2(false);
-    if (error) return setErr2(error.message); setOldPw(''); setNewPw(''); showToast('Mot de passe mis à jour ✦');
+    const { error } = await supabase.auth.updateUser({ password: newPw });
+    setL2(false);
+    if (error) return setErr2(error.message);
+    setOldPw(''); setNewPw(''); showToast('Mot de passe mis à jour ✦');
   };
+
   return (
     <div className="page-wrap">
       <div className="page-hdr"><div className="page-title">Mon <span>Compte</span></div></div>
@@ -916,6 +1212,21 @@ function AccountPage({ user, profile, onProfileUpdate, showToast, onLogout }) {
           <p style={{ fontSize: '.8rem', color: 'var(--muted)', marginBottom: 14 }}>Connecté en tant que <strong style={{ color: 'var(--text)' }}>{profile?.pseudo || user.email}</strong></p>
           <button className="btn btn-danger" onClick={onLogout}>Se déconnecter</button>
         </div>
+        <div className="account-section">
+          <div className="account-section-title">Logo de l'application</div>
+          <p style={{ fontSize: '.78rem', color: 'var(--text2)', marginBottom: 14, lineHeight: 1.7 }}>
+            Pour personnaliser le logo, ouvrez le fichier <strong style={{ color: 'var(--text)' }}>src/App.jsx</strong> et modifiez la valeur de <strong style={{ color: 'var(--red2)' }}>CUSTOM_LOGO_URL</strong> en haut du fichier.
+            <br />Exemple&nbsp;: <code style={{ background: 'var(--surface2)', padding: '2px 6px', borderRadius: 5, fontSize: '.72rem' }}>const CUSTOM_LOGO_URL = '/mon-logo.png';</code>
+            <br />Placez votre fichier dans le dossier <strong style={{ color: 'var(--text)' }}>public/</strong> du projet.
+          </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'var(--surface2)', padding: '12px 16px', borderRadius: 10, border: '1px solid var(--border)' }}>
+            <LogoImg size={40} />
+            <div>
+              <div style={{ fontSize: '.78rem', fontWeight: 700, color: 'var(--text)' }}>Aperçu du logo actuel</div>
+              <div style={{ fontSize: '.68rem', color: 'var(--muted)', marginTop: 2 }}>{CUSTOM_LOGO_URL ? CUSTOM_LOGO_URL : 'Placeholder — aucun logo configuré'}</div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -927,78 +1238,114 @@ function AppShell({ user, profile, onProfileUpdate, onLogout, showToast }) {
   const [collections, setCollections] = useState([]);
   const [activeColId, setActiveColId] = useState(null);
   const [mobOpen, setMob] = useState(false);
-  const [newColModal, setNewColModal] = useState(false); const [newColName, setNewColName] = useState('');
+  const [newColModal, setNewColModal] = useState(false);
+  const [newColName, setNewColName] = useState('');
   const [renameModal, setRenameModal] = useState(null);
+  const [confirmModal, setConfirmModal] = useState(null);
   const saveTimers = useRef({});
 
   useEffect(() => {
-    supabase.from('collections').select('*').eq('user_id', user.id).order('created_at', { ascending: true })
-      .then(({ data }) => { if (data?.length) { setCollections(data); setActiveColId(data[0].id); } });
+    supabase.from('collections').select('*').eq('user_id', user.id)
+      .order('created_at', { ascending: true })
+      .then(({ data, error }) => {
+        if (error) { showToast('Erreur chargement: ' + error.message, '#c82828'); return; }
+        if (data?.length) { setCollections(data); setActiveColId(data[0].id); }
+      });
   }, [user.id]);
 
   const persist = useCallback((col) => {
     clearTimeout(saveTimers.current[col.id]);
     saveTimers.current[col.id] = setTimeout(async () => {
-      await supabase.from('collections').update({ cards: col.cards, updated_at: new Date().toISOString() }).eq('id', col.id);
+      const { error } = await supabase.from('collections')
+        .update({ cards: col.cards, updated_at: new Date().toISOString() })
+        .eq('id', col.id);
+      if (error) showToast('Erreur sauvegarde: ' + error.message, '#c82828');
     }, 1200);
   }, []);
 
   const updateCollection = useCallback((updated) => {
-    setCollections(prev => prev.map(c => c.id === updated.id ? updated : c)); persist(updated);
+    setCollections(prev => prev.map(c => c.id === updated.id ? updated : c));
+    persist(updated);
   }, [persist]);
 
   const addToCollection = useCallback((colId, newCards) => {
     setCollections(prev => prev.map(c => {
       if (c.id !== colId) return c;
-      const u = { ...c, cards: [...c.cards, ...newCards] }; persist(u); return u;
+      const updated = { ...c, cards: [...c.cards, ...newCards] };
+      persist(updated); return updated;
     }));
   }, [persist]);
 
   const createCollection = async () => {
-    const name = (newColName.trim() || 'Nouvelle collection');
-    const { data, error } = await supabase.from('collections').insert({ user_id: user.id, name, cards: [] }).select().single();
-    if (!error && data) { setCollections(prev => [...prev, data]); setActiveColId(data.id); setPage('collection'); }
+    const name = newColName.trim() || 'Nouvelle collection';
+    const { data, error } = await supabase.from('collections')
+      .insert({ user_id: user.id, name, cards: [] })
+      .select().single();
+    if (error) {
+      showToast('Erreur création: ' + error.message, '#c82828');
+      setNewColModal(false); setNewColName(''); return;
+    }
+    if (data) { setCollections(prev => [...prev, data]); setActiveColId(data.id); setPage('collection'); }
     setNewColModal(false); setNewColName('');
   };
 
   const renameCollection = async () => {
     if (!renameModal?.name?.trim()) return;
-    await supabase.from('collections').update({ name: renameModal.name }).eq('id', renameModal.id);
+    const { error } = await supabase.from('collections').update({ name: renameModal.name }).eq('id', renameModal.id);
+    if (error) { showToast('Erreur renommage: ' + error.message, '#c82828'); return; }
     setCollections(prev => prev.map(c => c.id === renameModal.id ? { ...c, name: renameModal.name } : c));
     setRenameModal(null); showToast('Collection renommée ✦');
   };
 
-  const deleteCollection = async (colId) => {
-    if (!confirm('Supprimer cette collection ?')) return;
-    await supabase.from('collections').delete().eq('id', colId);
-    const next = collections.filter(c => c.id !== colId); setCollections(next);
-    if (activeColId === colId) setActiveColId(next[0]?.id || null); showToast('Collection supprimée', '#c82828');
+  const deleteCollection = (colId) => {
+    const col = collections.find(c => c.id === colId);
+    setConfirmModal({
+      title: '🗑 Supprimer la collection',
+      message: `Supprimer "${col?.name}" et toutes ses cartes ? Cette action est irréversible.`,
+      onConfirm: async () => {
+        const { error } = await supabase.from('collections').delete().eq('id', colId);
+        if (error) { showToast('Erreur suppression: ' + error.message, '#c82828'); return; }
+        const next = collections.filter(c => c.id !== colId);
+        setCollections(next);
+        if (activeColId === colId) setActiveColId(next[0]?.id || null);
+        showToast('Collection supprimée', '#c82828');
+      },
+    });
   };
 
   const activeCollection = collections.find(c => c.id === activeColId) || null;
 
   const sidebar = (
     <div className="sidebar">
-      <div className="sb-top"><div className="logo"><div className="logo-icon">◆</div>Cartodex</div></div>
+      <div className="sb-top">
+        <div className="logo"><LogoImg size={28} />Cartodex</div>
+      </div>
       <nav className="sb-nav">
         <div className="sb-section-label">Mes collections</div>
         {collections.map(col => (
-          <button key={col.id} className={`sb-link${page === 'collection' && activeColId === col.id ? ' active' : ''}`}
+          <button key={col.id}
+            className={`sb-link${page === 'collection' && activeColId === col.id ? ' active' : ''}`}
             onClick={() => { setActiveColId(col.id); setPage('collection'); setMob(false); }}>
             <span className="icon">📋</span>
             <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{col.name}</span>
             <div style={{ display: 'flex', gap: 2, flexShrink: 0, marginLeft: 4 }}>
-              <span className="btn btn-xs btn-ghost" style={{ padding: '2px 5px' }} onClick={e => { e.stopPropagation(); setRenameModal({ id: col.id, name: col.name }); }}>✏️</span>
-              {collections.length > 1 && <span className="btn btn-xs btn-danger" style={{ padding: '2px 5px' }} onClick={e => { e.stopPropagation(); deleteCollection(col.id); }}>✕</span>}
+              <span className="btn btn-xs btn-ghost" style={{ padding: '2px 5px' }}
+                onClick={e => { e.stopPropagation(); setRenameModal({ id: col.id, name: col.name }); }}>✏️</span>
+              {collections.length > 1 &&
+                <span className="btn btn-xs btn-danger" style={{ padding: '2px 5px' }}
+                  onClick={e => { e.stopPropagation(); deleteCollection(col.id); }}>✕</span>
+              }
             </div>
           </button>
         ))}
         <div className="sb-col-actions">
-          <button className="btn btn-sm" style={{ width: '100%', justifyContent: 'center' }} onClick={() => setNewColModal(true)}>＋ Nouvelle collection</button>
+          <button className="btn btn-sm" style={{ width: '100%', justifyContent: 'center' }}
+            onClick={() => setNewColModal(true)}>＋ Nouvelle collection</button>
         </div>
         <div className="sb-section-label" style={{ marginTop: 8 }}>Navigation</div>
         {[{ id: 'browse', icon: '🔍', label: 'Parcourir' }, { id: 'account', icon: '⚙️', label: 'Mon Compte' }].map(n => (
-          <button key={n.id} className={`sb-link${page === n.id ? ' active' : ''}`} onClick={() => { setPage(n.id); setMob(false); }}>
+          <button key={n.id} className={`sb-link${page === n.id ? ' active' : ''}`}
+            onClick={() => { setPage(n.id); setMob(false); }}>
             <span className="icon">{n.icon}</span>{n.label}
           </button>
         ))}
@@ -1016,10 +1363,11 @@ function AppShell({ user, profile, onProfileUpdate, onLogout, showToast }) {
       {sidebar}
       <div className="mob-header">
         <button className="mob-menu-btn" onClick={() => setMob(true)}>☰</button>
-        <div className="logo" style={{ fontSize: '1rem', letterSpacing: '2px' }}><div className="logo-icon">◆</div>Cartodex</div>
+        <div className="logo" style={{ fontSize: '1rem', letterSpacing: '2px' }}><LogoImg size={24} />Cartodex</div>
         <div style={{ width: 32 }} />
       </div>
       {mobOpen && <div className="mob-drawer open"><div className="mob-overlay" onClick={() => setMob(false)} />{sidebar}</div>}
+
       <main className="main">
         {page === 'collection' && <CollectionPage collection={activeCollection} allCollections={collections} onUpdate={updateCollection} onAddToCollection={addToCollection} showToast={showToast} />}
         {page === 'browse' && <BrowsePage allCollections={collections} onAddToCollection={addToCollection} showToast={showToast} />}
@@ -1027,22 +1375,47 @@ function AppShell({ user, profile, onProfileUpdate, onLogout, showToast }) {
       </main>
 
       {/* New collection modal */}
-      <div className={`overlay${newColModal ? ' open' : ''}`} onClick={e => e.target.classList.contains('overlay') && setNewColModal(false)}>
+      <div className={`overlay${newColModal ? ' open' : ''}`}
+        onClick={e => e.target.classList.contains('overlay') && setNewColModal(false)}>
         <div className="modal">
           <div className="modal-title">＋ Nouvelle collection</div>
-          <div className="field"><label>Nom</label><input autoFocus value={newColName} onChange={e => setNewColName(e.target.value)} placeholder="Ex : Espèces Delta complète" onKeyDown={e => e.key === 'Enter' && createCollection()} /></div>
-          <div className="modal-acts"><button className="btn btn-ghost" onClick={() => { setNewColModal(false); setNewColName(''); }}>Annuler</button><button className="btn btn-red" onClick={createCollection}>Créer</button></div>
+          <div className="field"><label>Nom de la collection</label>
+            <input autoFocus value={newColName} onChange={e => setNewColName(e.target.value)}
+              placeholder="Ex : Espèces Delta — EX Bloc"
+              onKeyDown={e => e.key === 'Enter' && createCollection()} />
+          </div>
+          <div className="modal-acts">
+            <button className="btn btn-ghost" onClick={() => { setNewColModal(false); setNewColName(''); }}>Annuler</button>
+            <button className="btn btn-red" onClick={createCollection}>Créer</button>
+          </div>
         </div>
       </div>
 
       {/* Rename modal */}
-      <div className={`overlay${renameModal ? ' open' : ''}`} onClick={e => e.target.classList.contains('overlay') && setRenameModal(null)}>
+      <div className={`overlay${renameModal ? ' open' : ''}`}
+        onClick={e => e.target.classList.contains('overlay') && setRenameModal(null)}>
         {renameModal && <div className="modal">
-          <div className="modal-title">✏️ Renommer</div>
-          <div className="field"><label>Nouveau nom</label><input autoFocus value={renameModal.name} onChange={e => setRenameModal(m => ({ ...m, name: e.target.value }))} onKeyDown={e => e.key === 'Enter' && renameCollection()} /></div>
-          <div className="modal-acts"><button className="btn btn-ghost" onClick={() => setRenameModal(null)}>Annuler</button><button className="btn btn-red" onClick={renameCollection}>Renommer</button></div>
+          <div className="modal-title">✏️ Renommer la collection</div>
+          <div className="field"><label>Nouveau nom</label>
+            <input autoFocus value={renameModal.name}
+              onChange={e => setRenameModal(m => ({ ...m, name: e.target.value }))}
+              onKeyDown={e => e.key === 'Enter' && renameCollection()} />
+          </div>
+          <div className="modal-acts">
+            <button className="btn btn-ghost" onClick={() => setRenameModal(null)}>Annuler</button>
+            <button className="btn btn-red" onClick={renameCollection}>Renommer</button>
+          </div>
         </div>}
       </div>
+
+      {/* Confirm delete modal */}
+      <ConfirmModal
+        open={!!confirmModal}
+        title={confirmModal?.title}
+        message={confirmModal?.message}
+        onConfirm={confirmModal?.onConfirm || (() => { })}
+        onClose={() => setConfirmModal(null)}
+      />
     </div>
   );
 }
@@ -1053,18 +1426,30 @@ export default function App() {
   const [loading, setLoading] = useState(true); const [isReset, setIsReset] = useState(false);
   const [toast, setToast] = useState({ msg: '', color: '#3ab870', show: false });
   const timer = useRef(null);
-  const showToast = useCallback((msg, color = '#3ab870') => { clearTimeout(timer.current); setToast({ msg, color, show: true }); timer.current = setTimeout(() => setToast(t => ({ ...t, show: false })), 2600); }, []);
+
+  const showToast = useCallback((msg, color = '#3ab870') => {
+    clearTimeout(timer.current);
+    setToast({ msg, color, show: true });
+    timer.current = setTimeout(() => setToast(t => ({ ...t, show: false })), 2800);
+  }, []);
 
   useEffect(() => {
-    if (window.location.hash.includes('type=recovery') || new URLSearchParams(window.location.search).get('reset')) setIsReset(true);
+    if (window.location.hash.includes('type=recovery') || new URLSearchParams(window.location.search).get('reset'))
+      setIsReset(true);
     supabase.auth.getSession().then(async ({ data }) => {
-      if (data.session?.user) { const u = data.session.user; setUser(u); const { data: p } = await supabase.from('profiles').select('*').eq('id', u.id).single(); setProfile(p); }
+      if (data.session?.user) {
+        const u = data.session.user; setUser(u);
+        const { data: p } = await supabase.from('profiles').select('*').eq('id', u.id).single();
+        setProfile(p);
+      }
       setLoading(false);
     });
     const { data: sub } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_IN' && session?.user) {
-        setUser(session.user); const { data: p } = await supabase.from('profiles').select('*').eq('id', session.user.id).single();
-        setProfile(p); setIsReset(false); window.history.replaceState({}, '', window.location.pathname);
+        setUser(session.user);
+        const { data: p } = await supabase.from('profiles').select('*').eq('id', session.user.id).single();
+        setProfile(p); setIsReset(false);
+        window.history.replaceState({}, '', window.location.pathname);
       }
       if (event === 'SIGNED_OUT') { setUser(null); setProfile(null); }
       if (event === 'PASSWORD_RECOVERY') setIsReset(true);
@@ -1079,14 +1464,20 @@ export default function App() {
       <style>{CSS}</style>
       {loading
         ? <div style={{ position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16, background: 'var(--bg)' }}>
-          <div className="logo"><div className="logo-icon">◆</div>Cartodex</div>
+          <div className="logo"><LogoImg size={32} />Cartodex</div>
           <div className="spinner" />
         </div>
         : isReset ? <ResetPasswordPage onDone={() => setIsReset(false)} />
-        : !user ? <AuthPage onLogin={async u => { setUser(u); const { data: p } = await supabase.from('profiles').select('*').eq('id', u.id).single(); setProfile(p); }} />
+        : !user ? <AuthPage onLogin={async u => {
+          setUser(u);
+          const { data: p } = await supabase.from('profiles').select('*').eq('id', u.id).single();
+          setProfile(p);
+        }} />
         : <AppShell user={user} profile={profile} onProfileUpdate={setProfile} onLogout={logout} showToast={showToast} />
       }
-      <div className={`toast${toast.show ? ' show' : ''}`} style={{ borderColor: toast.color, color: toast.color }}>{toast.msg}</div>
+      <div className={`toast${toast.show ? ' show' : ''}`} style={{ borderColor: toast.color, color: toast.color }}>
+        {toast.msg}
+      </div>
     </>
   );
 }
