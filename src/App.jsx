@@ -8,7 +8,7 @@ const TCGDEX = "https://api.tcgdex.net/v2/fr";
 //   1. Copiez votre fichier (PNG/SVG/WEBP) dans le dossier  public/  du projet
 //   2. Remplacez null par le chemin :  const CUSTOM_LOGO_URL = '/mon-logo.png';
 //   Ou utilisez une URL distante :     const CUSTOM_LOGO_URL = 'https://…/logo.svg';
-const CUSTOM_LOGO_URL = null;
+const CUSTOM_LOGO_URL = '/logo.png';
 
 // ─── RARETÉ ──────────────────────────────────────────────────────────────────
 function rarityColor(r) {
@@ -992,7 +992,7 @@ function CollectionPage({ collection, allCollections, onUpdate, onAddToCollectio
 
 // ─── BROWSE PAGE ──────────────────────────────────────────────────────────────
 function BrowsePage({ allCollections, onAddToCollection, showToast }) {
-  const [series, setSeries] = useState([]);    // All series with their sets
+  const [series, setSeries] = useState([]);    // Grouped: [{id, name, logo, sets:[]}]
   const [selSet, setSelSet] = useState(null);  // Currently viewed set
   const [setCards, setSetCards] = useState([]); // Cards of the selected set
   const [loading, setLoading] = useState(true);
@@ -1002,16 +1002,64 @@ function BrowsePage({ allCollections, onAddToCollection, showToast }) {
   const [browseSelected, setBrowseSelected] = useState(new Set());
 
   useEffect(() => {
-    // Fetch all series with their sets from TCGdex
-    fetch(`${TCGDEX}/series`)
-      .then(r => r.json())
+    // /series returns objects WITHOUT their sets list — so we fetch /sets
+    // and group them by serie ourselves.
+    fetch(`${TCGDEX}/sets`)
+      .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
       .then(data => {
-        // Reverse so newest series appears first
-        const sorted = Array.isArray(data) ? [...data].reverse() : [];
-        setSeries(sorted.filter(s => s.sets?.length > 0));
+        if (!Array.isArray(data) || data.length === 0) throw new Error('empty');
+
+        // Build a map serieId -> { id, name, logo, sets[] }
+        const map = new Map();
+        // Sort sets by releaseDate ascending so they appear in order within each serie
+        const sorted = [...data].sort((a, b) =>
+          (a.releaseDate || '').localeCompare(b.releaseDate || ''));
+
+        sorted.forEach(set => {
+          const sid  = set.serie?.id   || 'other';
+          const sname = set.serie?.name || 'Autres';
+          const slogo = set.serie?.logo || null;
+          if (!map.has(sid)) map.set(sid, { id: sid, name: sname, logo: slogo, sets: [] });
+          map.get(sid).sets.push(set);
+        });
+
+        // Convert to array, newest series first (reverse release order)
+        // We take the latest releaseDate of each serie's sets to sort series
+        const grouped = [...map.values()].sort((a, b) => {
+          const la = a.sets[a.sets.length - 1]?.releaseDate || '';
+          const lb = b.sets[b.sets.length - 1]?.releaseDate || '';
+          return lb.localeCompare(la);   // newest serie first
+        });
+
+        setSeries(grouped);
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch(err => {
+        console.error('TCGdex /sets error:', err);
+        // Fallback: try English endpoint
+        fetch('https://api.tcgdex.net/v2/en/sets')
+          .then(r => r.json())
+          .then(data => {
+            if (!Array.isArray(data)) throw new Error('bad');
+            const sorted = [...data].sort((a, b) => (b.releaseDate || '').localeCompare(a.releaseDate || ''));
+            const map = new Map();
+            sorted.forEach(set => {
+              const sid = set.serie?.id || 'other';
+              const sname = set.serie?.name || 'Autres';
+              const slogo = set.serie?.logo || null;
+              if (!map.has(sid)) map.set(sid, { id: sid, name: sname, logo: slogo, sets: [] });
+              map.get(sid).sets.push(set);
+            });
+            const grouped = [...map.values()].sort((a, b) => {
+              const la = a.sets[0]?.releaseDate || '';
+              const lb = b.sets[0]?.releaseDate || '';
+              return lb.localeCompare(la);
+            });
+            setSeries(grouped.filter(s => s.sets.length > 0));
+          })
+          .catch(() => {})
+          .finally(() => setLoading(false));
+      });
   }, []);
 
   useEffect(() => { setBrowseSelected(new Set()); }, [selSet]);
@@ -1086,7 +1134,7 @@ function BrowsePage({ allCollections, onAddToCollection, showToast }) {
         loading
           ? <div className="spinner-wrap" style={{ padding: 40 }}><div className="spinner" />Chargement des séries…</div>
           : series.length === 0
-          ? <div className="empty"><span className="empty-icon">📦</span><h3>Aucune extension disponible</h3><p>Impossible de charger les données TCGdex.</p></div>
+          ? <div className="empty"><span className="empty-icon">📦</span><h3>Aucune extension disponible</h3><p>Vérifiez votre connexion internet — données via api.tcgdex.net</p><button className="btn btn-sm btn-red" style={{marginTop:14}} onClick={()=>window.location.reload()}>🔄 Réessayer</button></div>
           : <div className="browse-scroll">
             {series.map(serie => (
               <div key={serie.id} className="serie-section">
@@ -1107,7 +1155,7 @@ function BrowsePage({ allCollections, onAddToCollection, showToast }) {
                         </div>
                       )}
                       <div className="set-card-name">{s.name}</div>
-                      <div className="set-card-meta">{s.cardCount?.total ?? s.cardCount ?? '?'} cartes · {s.releaseDate?.split('-')[0] ?? '—'}</div>
+                      <div className="set-card-meta">{typeof s.cardCount === 'object' ? (s.cardCount?.total ?? s.cardCount?.official ?? '?') : (s.cardCount ?? '?')} cartes · {s.releaseDate?.split('-')[0] ?? '—'}</div>
                       <div className="set-card-badge">{s.id}</div>
                     </div>
                   ))}
