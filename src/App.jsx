@@ -402,20 +402,23 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 /* ── BINDER VIEW ── */
 .binder-outer{padding:14px 12px 20px;flex:1;background:var(--bg);
   display:flex;flex-direction:column;align-items:center;gap:10px;
-  overflow:hidden;min-height:0;}
-.binder-nav{display:flex;align-items:center;gap:14px;width:100%;max-width:2400px;
+  overflow-y:auto;}
+.binder-nav{display:flex;align-items:center;gap:14px;width:100%;max-width:1600px;
   justify-content:space-between;flex-wrap:wrap;flex-shrink:0;}
 .binder-page-label{font-size:.72rem;color:var(--muted);font-weight:600;letter-spacing:1px;
   text-align:center;flex:1}
 
-/* Perspective wrapper — fills all remaining vertical space,
-   capped so the book stays fully visible (no scroll needed) */
+/*
+ * Taille du classeur : on veut qu'il tienne dans l'écran en largeur ET en hauteur.
+ * Ratio naturel du book ≈ 1.52 (largeur/hauteur), calculé à partir du rapport des
+ * cartes Pokémon (2.5/3.5), 3 colonnes, 3 lignes, padding et spine.
+ * On prend le minimum entre la largeur disponible et (vh - barre nav) × ratio,
+ * avec un plafond à 1540px pour les très grands écrans.
+ */
 .binder-book-wrap{
-  flex:1;min-height:0;
-  /* max-width: keep book within available horizontal space */
-  width:100%;max-width:2400px;
-  display:flex;align-items:stretch;
-  perspective:1800px;
+  width: min(100%, 1540px, calc((100vh - 130px) * 1.52));
+  flex-shrink: 0;
+  perspective: 1800px;
 }
 .binder-book-wrap.b-out-next{animation:bOutNext .2s ease forwards}
 .binder-book-wrap.b-out-prev{animation:bOutPrev .2s ease forwards}
@@ -425,7 +428,7 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 @keyframes bIn{0%{opacity:0;transform:scale(.97)}100%{opacity:1;transform:none}}
 
 /* Physical binder */
-.binder-book{display:flex;flex:1;min-height:0;
+.binder-book{display:flex;width:100%;
   border-radius:6px 14px 14px 6px;overflow:hidden;
   box-shadow:-6px 0 0 #060402,0 20px 60px rgba(0,0,0,.8),
     inset 2px 0 16px rgba(0,0,0,.45);}
@@ -445,11 +448,10 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
   background:radial-gradient(circle,#3a3028 40%,#1a1008 100%);
   box-shadow:inset 0 1px 4px rgba(0,0,0,.9);}
 
-/* Pages */
-.binder-page{flex:1;min-height:0;padding:12px;
+/* Pages — hauteur naturellement dérivée du ratio des slots */
+.binder-page{flex:1;padding:12px;
   background:linear-gradient(160deg,#221810 0%,#1a1008 50%,#140e06 100%);
-  display:grid;grid-template-columns:repeat(3,1fr);
-  grid-auto-rows:1fr;gap:7px;position:relative;}
+  display:grid;grid-template-columns:repeat(3,1fr);gap:7px;position:relative;}
 .binder-page-left{order:1;box-shadow:inset -4px 0 12px rgba(0,0,0,.35);}
 .binder-page-right{order:3;box-shadow:inset 4px 0 12px rgba(0,0,0,.25);}
 /* Subtle horizontal line texture */
@@ -458,8 +460,8 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
     0deg,transparent,transparent 30px,
     rgba(255,255,255,.014) 30px,rgba(255,255,255,.014) 31px);}
 
-/* Card pocket / slot */
-.binder-slot{width:100%;height:100%;border-radius:7px;position:relative;
+/* Card pocket — aspect-ratio pilote la hauteur, pas la grille */
+.binder-slot{aspect-ratio:2.5/3.5;width:100%;border-radius:7px;position:relative;
   background:rgba(0,0,0,.38);
   box-shadow:inset 0 2px 8px rgba(0,0,0,.65),inset 0 0 0 1px rgba(255,255,255,.045);
   will-change:transform;cursor:pointer;overflow:visible;}
@@ -835,7 +837,34 @@ function CollectionPage({ collection, allCollections, onUpdate, onAddToCollectio
       if (!res.ok) throw new Error(`Erreur ${res.status}`);
       const data = await res.json();
       if (!data.cards?.length) throw new Error('Aucune carte trouvée.');
+
+      // Afficher le preview immédiatement avec les données de base
       setImpCards(data.cards); setImpSel(null); setImpState('preview');
+
+      // Enrichissement progressif des raretés en arrière-plan
+      // L'endpoint /sets/{id} ne contient pas la rareté — on la récupère
+      // via /cards/{cardId} par lots de 20 pour ne pas saturer l'API.
+      const allCards = [...data.cards];
+      const CHUNK = 20;
+      for (let i = 0; i < allCards.length; i += CHUNK) {
+        const chunk = allCards.slice(i, i + CHUNK);
+        const details = await Promise.all(
+          chunk.map(c =>
+            fetch(`${TCGDEX}/cards/${c.id}`)
+              .then(r => r.ok ? r.json() : null)
+              .catch(() => null)
+          )
+        );
+        let changed = false;
+        details.forEach((detail, j) => {
+          if (detail?.rarity && !allCards[i + j].rarity) {
+            allCards[i + j] = { ...allCards[i + j], rarity: detail.rarity };
+            changed = true;
+          }
+        });
+        // Mettre à jour l'état seulement si on a trouvé de nouvelles raretés
+        if (changed) setImpCards([...allCards]);
+      }
     } catch (e) { setImpErr(e.message); setImpState('error'); }
   };
 
