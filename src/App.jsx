@@ -8,7 +8,7 @@ const TCGDEX = "https://api.tcgdex.net/v2/fr";
 //   1. Copiez votre fichier (PNG/SVG/WEBP) dans le dossier  public/  du projet
 //   2. Remplacez null par le chemin :  const CUSTOM_LOGO_URL = '/mon-logo.png';
 //   Ou utilisez une URL distante :     const CUSTOM_LOGO_URL = 'https://…/logo.svg';
-const CUSTOM_LOGO_URL = null;
+const CUSTOM_LOGO_URL = '/logo.png';
 
 // ─── RARETÉ ──────────────────────────────────────────────────────────────────
 function rarityColor(r) {
@@ -234,23 +234,24 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 .card-badge{position:absolute;top:6px;right:6px;z-index:4;width:20px;height:20px;border-radius:50%;
   background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;
   font-size:.6rem;font-weight:900;box-shadow:0 2px 7px rgba(0,0,0,.5)}
-.card-checkbox{position:absolute;top:6px;left:6px;z-index:5;width:20px;height:20px;border-radius:5px;
-  border:2px solid rgba(255,255,255,.4);background:rgba(0,0,0,.5);
+.card-checkbox{position:absolute;top:7px;left:7px;z-index:5;width:34px;height:34px;border-radius:8px;
+  border:2.5px solid rgba(255,255,255,.55);background:rgba(0,0,0,.6);
   display:flex;align-items:center;justify-content:center;cursor:pointer;
-  transition:all .15s;opacity:0}
+  transition:all .15s;opacity:0;backdrop-filter:blur(3px)}
 .tilt-wrap:hover .card-checkbox,.card-checkbox.checked,.sel-mode .card-checkbox{opacity:1}
-.card-checkbox.checked{background:var(--red2);border-color:var(--red2)}
-.card-checkbox.checked::after{content:'✓';color:#fff;font-size:.6rem;font-weight:900}
+.card-checkbox.checked{background:var(--red2);border-color:var(--red2);
+  box-shadow:0 0 0 3px rgba(200,40,40,.25)}
+.card-checkbox.checked::after{content:'✓';color:#fff;font-size:.88rem;font-weight:900}
 .card-foot{padding:8px 9px 9px;border-top:1px solid var(--border)}
-.card-name{font-size:.74rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.card-meta{font-size:.61rem;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.5}
+.card-name{font-size:.82rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card-meta{font-size:.68rem;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.5}
 .card-rarity{font-weight:700}
 .card-acts{display:flex;gap:4px;margin-top:6px;flex-wrap:wrap}
 .glist .tilt-wrap{display:flex;align-items:center;border-radius:11px;overflow:hidden}
 .glist .card{display:flex;align-items:center;gap:10px;padding-right:10px;border-radius:0;border:none}
 .glist .card-img-box{width:60px;min-width:60px;aspect-ratio:2.5/3.5;flex-shrink:0}
 .glist .card-foot{flex:1;border-top:none;padding:8px 0}
-.glist .card-name{font-size:.84rem}
+.glist .card-name{font-size:.94rem}
 .glist .card-glare{display:none}
 .glist .card-checkbox{top:50%;transform:translateY(-50%)}
 
@@ -399,15 +400,23 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 }
 
 /* ── BINDER VIEW ── */
-.binder-outer{padding:14px 20px 80px;flex:1;background:var(--bg);
-  display:flex;flex-direction:column;align-items:center;gap:14px;overflow-y:auto}
-.binder-nav{display:flex;align-items:center;gap:14px;width:100%;max-width:940px;
-  justify-content:space-between;flex-wrap:wrap}
+.binder-outer{padding:14px 12px 20px;flex:1;background:var(--bg);
+  display:flex;flex-direction:column;align-items:center;gap:10px;
+  overflow:hidden;min-height:0;}
+.binder-nav{display:flex;align-items:center;gap:14px;width:100%;max-width:2400px;
+  justify-content:space-between;flex-wrap:wrap;flex-shrink:0;}
 .binder-page-label{font-size:.72rem;color:var(--muted);font-weight:600;letter-spacing:1px;
   text-align:center;flex:1}
 
-/* Perspective wrapper – animation sits here */
-.binder-book-wrap{width:100%;max-width:940px;perspective:1200px;}
+/* Perspective wrapper — fills all remaining vertical space,
+   capped so the book stays fully visible (no scroll needed) */
+.binder-book-wrap{
+  flex:1;min-height:0;
+  /* max-width: keep book within available horizontal space */
+  width:100%;max-width:2400px;
+  display:flex;align-items:stretch;
+  perspective:1800px;
+}
 .binder-book-wrap.b-out-next{animation:bOutNext .2s ease forwards}
 .binder-book-wrap.b-out-prev{animation:bOutPrev .2s ease forwards}
 .binder-book-wrap.b-in{animation:bIn .22s ease forwards}
@@ -416,8 +425,9 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 @keyframes bIn{0%{opacity:0;transform:scale(.97)}100%{opacity:1;transform:none}}
 
 /* Physical binder */
-.binder-book{display:flex;border-radius:6px 14px 14px 6px;overflow:hidden;
-  box-shadow:-6px 0 0 #060402,0 28px 80px rgba(0,0,0,.85),
+.binder-book{display:flex;flex:1;min-height:0;
+  border-radius:6px 14px 14px 6px;overflow:hidden;
+  box-shadow:-6px 0 0 #060402,0 20px 60px rgba(0,0,0,.8),
     inset 2px 0 16px rgba(0,0,0,.45);}
 
 /* Spine — centred between the two pages */
@@ -436,9 +446,10 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
   box-shadow:inset 0 1px 4px rgba(0,0,0,.9);}
 
 /* Pages */
-.binder-page{flex:1;padding:12px;
+.binder-page{flex:1;min-height:0;padding:12px;
   background:linear-gradient(160deg,#221810 0%,#1a1008 50%,#140e06 100%);
-  display:grid;grid-template-columns:repeat(3,1fr);gap:7px;position:relative;}
+  display:grid;grid-template-columns:repeat(3,1fr);
+  grid-auto-rows:1fr;gap:7px;position:relative;}
 .binder-page-left{order:1;box-shadow:inset -4px 0 12px rgba(0,0,0,.35);}
 .binder-page-right{order:3;box-shadow:inset 4px 0 12px rgba(0,0,0,.25);}
 /* Subtle horizontal line texture */
@@ -448,7 +459,7 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
     rgba(255,255,255,.014) 30px,rgba(255,255,255,.014) 31px);}
 
 /* Card pocket / slot */
-.binder-slot{aspect-ratio:2.5/3.5;border-radius:7px;position:relative;
+.binder-slot{width:100%;height:100%;border-radius:7px;position:relative;
   background:rgba(0,0,0,.38);
   box-shadow:inset 0 2px 8px rgba(0,0,0,.65),inset 0 0 0 1px rgba(255,255,255,.045);
   will-change:transform;cursor:pointer;overflow:visible;}
@@ -892,11 +903,13 @@ function CollectionPage({ collection, allCollections, onUpdate, onAddToCollectio
   const handleDragEnd = () => { dragIdx.current = null; setDragOverIdx(null); };
   const handleDrop = idx => {
     if (dragIdx.current === null || dragIdx.current === idx) { setDragOverIdx(null); return; }
-    const all = [...cards];
     const dragged = visible[dragIdx.current]; const target = visible[idx];
-    const fi = all.findIndex(c => c.id === dragged.id); const ti = all.findIndex(c => c.id === target.id);
-    const next = [...all]; next.splice(fi, 1); next.splice(ti, 0, dragged);
-    onUpdate({ ...collection, cards: next });
+    const all = [...cards];
+    const fi = all.findIndex(c => c.id === dragged.id);
+    const ti = all.findIndex(c => c.id === target.id);
+    // Pure swap: only the two cards exchange positions, nothing else moves
+    [all[fi], all[ti]] = [all[ti], all[fi]];
+    onUpdate({ ...collection, cards: all });
     dragIdx.current = null; setDragOverIdx(null);
   };
 
@@ -994,15 +1007,23 @@ function CollectionPage({ collection, allCollections, onUpdate, onAddToCollectio
         ? <BinderView cards={visible} collectionId={collection.id} onZoom={setZoomCard}
             onToggle={toggleObtained} onEdit={openEdit} onDelete={deleteCard}
             onReorder={(from, to) => {
-              // Remap visible indices to full cards array
-              const all = [...cards];
+              // from/to are indices into visible[] — map to all[] by card id
               const draggedCard = visible[from];
-              const targetCard  = visible[to] || null;
-              const fi = all.findIndex(c => c.id === draggedCard?.id);
+              const targetCard  = visible[to] ?? null;
+              if (!draggedCard) return;
+              const all = [...cards];
+              const fi = all.findIndex(c => c.id === draggedCard.id);
               if (fi === -1) return;
-              all.splice(fi, 1);
-              const ti = targetCard ? all.findIndex(c => c.id === targetCard.id) : all.length;
-              all.splice(Math.max(0, ti), 0, draggedCard);
+              if (!targetCard) {
+                // dropped on empty slot → move dragged to end, no other shifts
+                all.splice(fi, 1);
+                all.push(draggedCard);
+              } else {
+                const ti = all.findIndex(c => c.id === targetCard.id);
+                if (ti === -1 || fi === ti) return;
+                // Pure swap — only these two cards exchange positions
+                [all[fi], all[ti]] = [all[ti], all[fi]];
+              }
               onUpdate({ ...collection, cards: all });
             }} />
         : <div className="col-wrap">
