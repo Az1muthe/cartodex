@@ -246,7 +246,9 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 .card-name{font-size:.82rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .card-meta{font-size:.68rem;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.5}
 .card-rarity{font-weight:700}
-.card-acts{display:flex;gap:4px;margin-top:6px;flex-wrap:wrap}
+.card-acts{display:flex;gap:4px;margin-top:6px;flex-wrap:wrap;width:100%}
+.card-acts .btn-sm{flex:1;justify-content:center;text-align:center;
+  font-size:clamp(.6rem,1.1vw,.78rem);padding:5px 4px;}
 .glist .tilt-wrap{display:flex;align-items:center;border-radius:11px;overflow:hidden}
 .glist .card{display:flex;align-items:center;gap:10px;padding-right:10px;border-radius:0;border:none}
 .glist .card-img-box{width:60px;min-width:60px;aspect-ratio:2.5/3.5;flex-shrink:0}
@@ -324,7 +326,8 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
   border:2.5px solid rgba(255,255,255,.6);background:rgba(0,0,0,.55);
   display:flex;align-items:center;justify-content:center;transition:all .15s;
   opacity:0;pointer-events:none;backdrop-filter:blur(2px)}
-.browse-card:hover .browse-chk,.browse-card.sel .browse-chk{opacity:1}
+.browse-card:hover .browse-chk,.browse-card.sel .browse-chk,
+.browse-grid.sel-active .browse-chk{opacity:1}
 .browse-card.sel .browse-chk{background:var(--red2);border-color:var(--red2)}
 .browse-card.sel .browse-chk::after{content:'✓';color:#fff;font-size:.8rem;font-weight:900}
 .browse-hover-overlay{position:absolute;inset:0;z-index:2;pointer-events:none;
@@ -490,13 +493,17 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 /* Hover actions */
 .bc-hover{position:absolute;inset:0;border-radius:6px;z-index:15;
   display:flex;flex-direction:column;align-items:center;justify-content:flex-end;
-  padding:4px;
+  padding:clamp(3px,3%,8px);
   background:linear-gradient(to top,rgba(10,8,14,.94) 0%,transparent 56%);
   opacity:0;transition:opacity .18s;pointer-events:none;}
 .binder-slot:hover .bc-hover{opacity:1;pointer-events:all;}
-.bc-acts{display:flex;gap:3px;}
-.bc-btn{border:none;border-radius:5px;cursor:pointer;font-size:.5rem;font-weight:700;
-  padding:3px 6px;font-family:'Outfit',sans-serif;transition:all .12s;line-height:1.4;}
+.bc-acts{display:flex;gap:clamp(2px,2%,6px);width:100%;}
+/* taille dynamique : 1.6vw sur grand écran, plancher .48rem, plafond .78rem */
+.bc-btn{border:none;border-radius:clamp(4px,4%,7px);cursor:pointer;
+  font-size:clamp(.48rem,1.6vw,.78rem);font-weight:700;
+  padding:clamp(3px,3%,7px) 0;
+  flex:1;text-align:center;
+  font-family:'Outfit',sans-serif;transition:all .12s;line-height:1.3;}
 .bc-ok{background:var(--green);color:#fff;}
 .bc-mark{background:var(--surface2);color:var(--text2);border:1px solid var(--border2);}
 .bc-mark:hover{background:rgba(58,184,112,.2);border-color:var(--green);}
@@ -841,13 +848,20 @@ function CollectionPage({ collection, allCollections, onUpdate, onAddToCollectio
       // Afficher le preview immédiatement avec les données de base
       setImpCards(data.cards); setImpSel(null); setImpState('preview');
 
-      // Enrichissement progressif des raretés en arrière-plan
+      // Enrichissement progressif des raretés (avec cache module-level)
       // L'endpoint /sets/{id} ne contient pas la rareté — on la récupère
-      // via /cards/{cardId} par lots de 20 pour ne pas saturer l'API.
-      const allCards = [...data.cards];
+      // via /cards/{cardId}. Le cache _rarityCache évite de refetcher.
+      const allCards = data.cards.map(c =>
+        _rarityCache.has(c.id) ? { ...c, rarity: _rarityCache.get(c.id) } : c
+      );
+      // Mise à jour immédiate si le cache a déjà des raretés pour ces cartes
+      if (allCards.some(c => c.rarity)) setImpCards([...allCards]);
+
+      // Fetch uniquement les cartes sans rareté connue
+      const toFetch = allCards.filter(c => !c.rarity);
       const CHUNK = 20;
-      for (let i = 0; i < allCards.length; i += CHUNK) {
-        const chunk = allCards.slice(i, i + CHUNK);
+      for (let i = 0; i < toFetch.length; i += CHUNK) {
+        const chunk = toFetch.slice(i, i + CHUNK);
         const details = await Promise.all(
           chunk.map(c =>
             fetch(`${TCGDEX}/cards/${c.id}`)
@@ -857,12 +871,17 @@ function CollectionPage({ collection, allCollections, onUpdate, onAddToCollectio
         );
         let changed = false;
         details.forEach((detail, j) => {
-          if (detail?.rarity && !allCards[i + j].rarity) {
-            allCards[i + j] = { ...allCards[i + j], rarity: detail.rarity };
-            changed = true;
+          const card = chunk[j];
+          const rarity = detail?.rarity;
+          if (rarity) {
+            _rarityCache.set(card.id, rarity); // store in module cache
+            const idx = allCards.findIndex(c => c.id === card.id);
+            if (idx !== -1 && !allCards[idx].rarity) {
+              allCards[idx] = { ...allCards[idx], rarity };
+              changed = true;
+            }
           }
         });
-        // Mettre à jour l'état seulement si on a trouvé de nouvelles raretés
         if (changed) setImpCards([...allCards]);
       }
     } catch (e) { setImpErr(e.message); setImpState('error'); }
@@ -1320,6 +1339,10 @@ function BinderView({ cards, collectionId, onZoom, onToggle, onEdit, onDelete, o
   );
 }
 
+// Module-level caches — survive BrowsePage unmount/remount
+let _seriesCache = null;          // Grouped series (fetched once per session)
+const _rarityCache = new Map();   // cardId → rarity string
+
 // ─── BROWSE PAGE ──────────────────────────────────────────────────────────────
 function BrowsePage({ allCollections, onAddToCollection, showToast }) {
   const [series, setSeries] = useState([]);    // Grouped: [{id, name, logo, sets:[]}]
@@ -1332,6 +1355,9 @@ function BrowsePage({ allCollections, onAddToCollection, showToast }) {
   const [browseSelected, setBrowseSelected] = useState(new Set());
 
   useEffect(() => {
+    // Return immediately if already cached
+    if (_seriesCache) { setSeries(_seriesCache); setLoading(false); return; }
+
     // /series returns objects WITHOUT their sets list — so we fetch /sets
     // and group them by serie ourselves.
     fetch(`${TCGDEX}/sets`)
@@ -1361,6 +1387,7 @@ function BrowsePage({ allCollections, onAddToCollection, showToast }) {
           return lb.localeCompare(la);   // newest serie first
         });
 
+        _seriesCache = grouped;
         setSeries(grouped);
         setLoading(false);
       })
@@ -1457,7 +1484,23 @@ function BrowsePage({ allCollections, onAddToCollection, showToast }) {
             </button>
           )}
         </div>
-        {selSet && <div style={{ fontSize: '.78rem', color: 'var(--muted)' }}>{setCards.length} cartes · {selSet.name}</div>}
+        {selSet && (
+          <div style={{ display:'flex', alignItems:'center', gap:10, flexWrap:'wrap' }}>
+            <span style={{ fontSize: '.78rem', color: 'var(--muted)' }}>{setCards.length} cartes · {selSet.name}</span>
+            {setCards.length > 0 && <>
+              <button className="btn btn-ghost btn-sm"
+                onClick={() => setBrowseSelected(new Set(setCards.map(c => c.id)))}>
+                ☑ Tout sélectionner
+              </button>
+              {browseSelected.size > 0 && (
+                <button className="btn btn-ghost btn-sm"
+                  onClick={() => setBrowseSelected(new Set())}>
+                  ☐ Désélectionner
+                </button>
+              )}
+            </>}
+          </div>
+        )}
       </div>
 
       {!selSet ? (
@@ -1495,7 +1538,7 @@ function BrowsePage({ allCollections, onAddToCollection, showToast }) {
           </div>
       ) : loadingC
         ? <div className="spinner-wrap" style={{ padding: 40 }}><div className="spinner" />Chargement des cartes…</div>
-        : <div className="browse-grid">
+        : <div className={`browse-grid${browseSelected.size > 0 ? ' sel-active' : ''}`}>
           {setCards.map((c, i) => {
             const inCol = inAny(c.id);
             const isSel = browseSelected.has(c.id);
@@ -1625,47 +1668,56 @@ function AppShell({ user, profile, onProfileUpdate, onLogout, showToast }) {
   const [renameModal, setRenameModal] = useState(null);
   const [confirmModal, setConfirmModal] = useState(null);
   const saveTimers = useRef({});
-  const [dirtyIds, setDirtyIds] = useState(new Set()); // collections with unsaved changes
-  const [savingIds, setSavingIds] = useState(new Set()); // collections being saved now
+  const latestCols = useRef({});          // always holds the most recent col data
+  const [dirtyIds, setDirtyIds] = useState(new Set());
+  const [savingIds, setSavingIds] = useState(new Set());
 
   useEffect(() => {
     supabase.from('collections').select('*').eq('user_id', user.id)
       .order('created_at', { ascending: true })
       .then(({ data, error }) => {
         if (error) { showToast('Erreur chargement: ' + error.message, '#c82828'); return; }
-        if (data?.length) { setCollections(data); setActiveColId(data[0].id); }
+        if (data?.length) {
+          data.forEach(c => { latestCols.current[c.id] = c; });
+          setCollections(data); setActiveColId(data[0].id);
+        }
       });
   }, [user.id]);
 
-  // Save a specific collection to Supabase immediately
-  const saveCollection = useCallback(async (col) => {
-    setSavingIds(prev => new Set([...prev, col.id]));
+  // Save a specific collection to Supabase (reads latest data from ref)
+  const saveCollection = useCallback(async (colId) => {
+    const col = latestCols.current[colId];
+    if (!col) return false;
+    setSavingIds(prev => new Set([...prev, colId]));
     const { error } = await supabase.from('collections')
       .update({ cards: col.cards, updated_at: new Date().toISOString() })
-      .eq('id', col.id);
-    setSavingIds(prev => { const s = new Set(prev); s.delete(col.id); return s; });
+      .eq('id', colId);
+    setSavingIds(prev => { const s = new Set(prev); s.delete(colId); return s; });
     if (error) { showToast('Erreur sauvegarde: ' + error.message, '#c82828'); return false; }
-    setDirtyIds(prev => { const s = new Set(prev); s.delete(col.id); return s; });
+    setDirtyIds(prev => { const s = new Set(prev); s.delete(colId); return s; });
     return true;
-  }, []);
+  }, [showToast]);
 
-  // Mark a collection as dirty and schedule an auto-save after 5s of inactivity
-  const markDirty = useCallback((col) => {
-    setDirtyIds(prev => new Set([...prev, col.id]));
-    clearTimeout(saveTimers.current[col.id]);
-    saveTimers.current[col.id] = setTimeout(() => saveCollection(col), 5000);
+  // Mark dirty: debounce 5s. Timer always reads LATEST col from ref at fire time.
+  const markDirty = useCallback((colId) => {
+    setDirtyIds(prev => new Set([...prev, colId]));
+    clearTimeout(saveTimers.current[colId]);
+    saveTimers.current[colId] = setTimeout(() => saveCollection(colId), 5000);
   }, [saveCollection]);
 
   const updateCollection = useCallback((updated) => {
+    latestCols.current[updated.id] = updated;
     setCollections(prev => prev.map(c => c.id === updated.id ? updated : c));
-    markDirty(updated);
+    markDirty(updated.id);
   }, [markDirty]);
 
   const addToCollection = useCallback((colId, newCards) => {
     setCollections(prev => prev.map(c => {
       if (c.id !== colId) return c;
       const updated = { ...c, cards: [...c.cards, ...newCards] };
-      markDirty(updated); return updated;
+      latestCols.current[colId] = updated;
+      markDirty(colId);
+      return updated;
     }));
   }, [markDirty]);
 
@@ -1690,21 +1742,29 @@ function AppShell({ user, profile, onProfileUpdate, onLogout, showToast }) {
     setRenameModal(null); showToast('Collection renommée ✦');
   };
 
-  const deleteCollection = (colId) => {
-    const col = collections.find(c => c.id === colId);
+  const deleteCollection = useCallback((colId) => {
+    const col = latestCols.current[colId];
     setConfirmModal({
       title: '🗑 Supprimer la collection',
       message: `Supprimer "${col?.name}" et toutes ses cartes ? Cette action est irréversible.`,
       onConfirm: async () => {
+        // Cancel any pending auto-save for this collection
+        clearTimeout(saveTimers.current[colId]);
+        delete saveTimers.current[colId];
+        delete latestCols.current[colId];
         const { error } = await supabase.from('collections').delete().eq('id', colId);
         if (error) { showToast('Erreur suppression: ' + error.message, '#c82828'); return; }
-        const next = collections.filter(c => c.id !== colId);
-        setCollections(next);
-        if (activeColId === colId) setActiveColId(next[0]?.id || null);
+        setCollections(prev => {
+          const next = prev.filter(c => c.id !== colId);
+          // Use functional update so we always read current activeColId
+          setActiveColId(cur => cur === colId ? (next[0]?.id || null) : cur);
+          return next;
+        });
+        setDirtyIds(prev => { const s = new Set(prev); s.delete(colId); return s; });
         showToast('Collection supprimée', '#c82828');
       },
     });
-  };
+  }, [showToast]);
 
   const activeCollection = collections.find(c => c.id === activeColId) || null;
 
@@ -1762,7 +1822,7 @@ function AppShell({ user, profile, onProfileUpdate, onLogout, showToast }) {
       {mobOpen && <div className="mob-drawer open"><div className="mob-overlay" onClick={() => setMob(false)} />{sidebar}</div>}
 
       <main className="main">
-        {page === 'collection' && <CollectionPage collection={activeCollection} allCollections={collections} onUpdate={updateCollection} onAddToCollection={addToCollection} showToast={showToast} isDirty={activeCollection ? dirtyIds.has(activeCollection.id) : false} isSaving={activeCollection ? savingIds.has(activeCollection.id) : false} onSave={() => { const col = collections.find(c => c.id === activeColId); if (col) saveCollection(col).then(ok => ok && showToast('Collection sauvegardée ✦')); }} />}
+        {page === 'collection' && <CollectionPage collection={activeCollection} allCollections={collections} onUpdate={updateCollection} onAddToCollection={addToCollection} showToast={showToast} isDirty={activeCollection ? dirtyIds.has(activeCollection.id) : false} isSaving={activeCollection ? savingIds.has(activeCollection.id) : false} onSave={() => saveCollection(activeColId).then(ok => ok && showToast('Collection sauvegardée ✦'))} />}
         {page === 'browse' && <BrowsePage allCollections={collections} onAddToCollection={addToCollection} showToast={showToast} />}
         {page === 'account' && <AccountPage user={user} profile={profile} onProfileUpdate={onProfileUpdate} showToast={showToast} onLogout={onLogout} />}
       </main>
