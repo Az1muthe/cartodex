@@ -206,13 +206,13 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 @keyframes spin{to{transform:rotate(360deg)}}
 
 /* ── TILT CARD (scanflip-style) ── */
-/* fadeUp lives on the OUTER wrapper div (inline style), NOT here,
-   to avoid fill-mode conflicting with JS-applied transforms */
 @keyframes fadeUp{from{opacity:0;transform:translateY(10px) scale(.96)}to{opacity:1;transform:none}}
-.tilt-wrap{
-  position:relative;border-radius:11px;
-  will-change:transform;cursor:pointer;
-  transform-style:preserve-3d;
+.tilt-wrap{position:relative;border-radius:11px;cursor:pointer;}
+/* Only the image wrapper tilts — footer stays flat */
+.card-img-tilt{
+  position:relative;border-radius:11px 11px 0 0;
+  will-change:transform;
+  transform-origin:50% 50%;
 }
 .tilt-wrap.drag-over .card{border-color:var(--red2)!important;box-shadow:0 0 0 2px var(--red2)!important}
 .card{
@@ -420,12 +420,12 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
   box-shadow:-6px 0 0 #060402,0 28px 80px rgba(0,0,0,.85),
     inset 2px 0 16px rgba(0,0,0,.45);}
 
-/* Spine */
-.binder-spine{width:34px;flex-shrink:0;
+/* Spine — centred between the two pages */
+.binder-spine{width:34px;flex-shrink:0;order:2;
   background:linear-gradient(to right,#0a0703 0%,#1c1108 25%,#261710 50%,#1c1108 75%,#0a0703 100%);
   display:flex;flex-direction:column;align-items:center;
   justify-content:space-evenly;padding:24px 0;
-  box-shadow:inset -2px 0 8px rgba(0,0,0,.6);position:relative;z-index:2;}
+  box-shadow:inset 0 0 12px rgba(0,0,0,.7);position:relative;z-index:2;}
 .binder-ring{width:20px;height:20px;border-radius:50%;flex-shrink:0;
   background:conic-gradient(from 110deg,#b0b0b0 0deg,#f0f0f0 55deg,#909090 110deg,
     #606060 175deg,#b0b0b0 235deg,#d8d8d8 295deg,#b0b0b0 360deg);
@@ -439,9 +439,8 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 .binder-page{flex:1;padding:12px;
   background:linear-gradient(160deg,#221810 0%,#1a1008 50%,#140e06 100%);
   display:grid;grid-template-columns:repeat(3,1fr);gap:7px;position:relative;}
-.binder-page-left{border-right:3px solid rgba(0,0,0,.7);
-  box-shadow:inset -6px 0 16px rgba(0,0,0,.5);}
-.binder-page-right{box-shadow:inset 4px 0 12px rgba(0,0,0,.25);}
+.binder-page-left{order:1;box-shadow:inset -4px 0 12px rgba(0,0,0,.35);}
+.binder-page-right{order:3;box-shadow:inset 4px 0 12px rgba(0,0,0,.25);}
 /* Subtle horizontal line texture */
 .binder-page::before{content:'';position:absolute;inset:0;pointer-events:none;
   background:repeating-linear-gradient(
@@ -491,6 +490,10 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 .bc-edit{background:var(--surface2);color:var(--text2);border:1px solid var(--border2);}
 .bc-del{background:rgba(200,40,40,.15);color:var(--red2);border:1px solid rgba(200,40,40,.3);}
 
+.binder-slot.drag-over-slot{outline:2px solid var(--red2);outline-offset:-2px;
+  background:rgba(200,40,40,.1);}
+.binder-slot[draggable="true"]{cursor:grab;}
+.binder-slot[draggable="true"]:active{cursor:grabbing;}
 @media(max-width:768px){
   .binder-outer{padding:10px 6px 80px;}
   .binder-page{padding:7px;gap:4px;}
@@ -521,45 +524,33 @@ function TiltCard({ card, onToggle, onEdit, onDelete, onZoom, listMode,
   selMode, selected, onSelect,
   isDraggable, onDragStart, onDragOver, onDragEnd, onDrop, dragOver }) {
 
-  const wrapRef = useRef(null);
+  // tiltRef targets ONLY the image box so the footer stays flat and buttons stay clickable
+  const tiltRef = useRef(null);
   const glareRef = useRef(null);
 
   const onMouseMove = useCallback((e) => {
     if (listMode) return;
-    const el = wrapRef.current; if (!el) return;
+    const el = tiltRef.current; if (!el) return;
     const r = el.getBoundingClientRect();
-    const x = (e.clientX - r.left) / r.width;   // 0–1
-    const y = (e.clientY - r.top) / r.height;    // 0–1
+    const x = (e.clientX - r.left) / r.width;
+    const y = (e.clientY - r.top) / r.height;
     const rotX = (y - 0.5) * -28;
     const rotY = (x - 0.5) * 28;
-
-    // Apply transform to wrapper (not to .card which has overflow:hidden)
     el.style.transform = `perspective(700px) rotateX(${rotX}deg) rotateY(${rotY}deg) scale(1.07)`;
     el.style.transition = 'transform .08s linear';
-
-    // Dynamic shadow matching tilt direction
-    el.style.filter = `drop-shadow(${-rotY * 0.4}px ${rotX * 0.3 + 16}px 24px rgba(0,0,0,.6))`;
-
-    // Scanflip-style glare — bright spot tracking the mouse
+    el.style.filter = `drop-shadow(${-rotY * 0.4}px ${rotX * 0.3 + 16}px 24px rgba(0,0,0,.7))`;
     if (glareRef.current) {
       glareRef.current.style.background = `
         radial-gradient(ellipse 65% 55% at ${x * 100}% ${y * 100}%,
-          rgba(255,255,255,.38) 0%,
-          rgba(255,255,255,.1) 35%,
-          transparent 70%
-        ),
-        linear-gradient(
-          ${135 + rotY * 1.5}deg,
-          rgba(${200 + rotY * 2},${150 - rotX * 2},${120 + rotX * 2},.08) 0%,
-          transparent 60%
-        )
-      `;
+          rgba(255,255,255,.38) 0%, rgba(255,255,255,.1) 35%, transparent 70%),
+        linear-gradient(${135 + rotY * 1.5}deg,
+          rgba(${200 + rotY * 2},${150 - rotX * 2},${120 + rotX * 2},.08) 0%, transparent 60%)`;
       glareRef.current.style.opacity = '1';
     }
   }, [listMode]);
 
   const onMouseLeave = useCallback(() => {
-    const el = wrapRef.current; if (!el) return;
+    const el = tiltRef.current; if (!el) return;
     el.style.transform = '';
     el.style.transition = 'transform .7s cubic-bezier(.23,1,.32,1)';
     el.style.filter = '';
@@ -574,7 +565,6 @@ function TiltCard({ card, onToggle, onEdit, onDelete, onZoom, listMode,
 
   return (
     <div
-      ref={wrapRef}
       className={`tilt-wrap${selMode ? ' sel-mode' : ''}${dragOver ? ' drag-over' : ''}`}
       onMouseMove={onMouseMove}
       onMouseLeave={onMouseLeave}
@@ -589,13 +579,16 @@ function TiltCard({ card, onToggle, onEdit, onDelete, onZoom, listMode,
         onClick={e => { e.stopPropagation(); onSelect(card.id); }} />
 
       <div className={`card${card.obtained ? ' got' : ''}`} onClick={handleClick}>
-        <div className="card-img-box">
-          {card.src
-            ? <img className="card-img" src={card.src} alt={card.name} loading="lazy" />
-            : <div style={{ width: '100%', height: '100%', background: 'var(--surface2)', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: .15, fontSize: '2rem' }}>🃏</div>
-          }
-          {card.obtained && <div className="card-badge">✓</div>}
-          <div ref={glareRef} className="card-glare" />
+        {/* tiltRef wraps ONLY the image — footer stays flat */}
+        <div ref={tiltRef} className="card-img-tilt">
+          <div className="card-img-box">
+            {card.src
+              ? <img className="card-img" src={card.src} alt={card.name} loading="lazy" />
+              : <div style={{ width: '100%', height: '100%', background: 'var(--surface2)', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: .15, fontSize: '2rem' }}>🃏</div>
+            }
+            {card.obtained && <div className="card-badge">✓</div>}
+            <div ref={glareRef} className="card-glare" />
+          </div>
         </div>
         <div className="card-foot">
           <div className="card-name">{card.name || 'Sans nom'}</div>
@@ -998,8 +991,20 @@ function CollectionPage({ collection, allCollections, onUpdate, onAddToCollectio
 
       {/* Card grid / binder */}
       {layout === 'binder'
-        ? <BinderView cards={visible} onZoom={setZoomCard}
-            onToggle={toggleObtained} onEdit={openEdit} onDelete={deleteCard} />
+        ? <BinderView cards={visible} collectionId={collection.id} onZoom={setZoomCard}
+            onToggle={toggleObtained} onEdit={openEdit} onDelete={deleteCard}
+            onReorder={(from, to) => {
+              // Remap visible indices to full cards array
+              const all = [...cards];
+              const draggedCard = visible[from];
+              const targetCard  = visible[to] || null;
+              const fi = all.findIndex(c => c.id === draggedCard?.id);
+              if (fi === -1) return;
+              all.splice(fi, 1);
+              const ti = targetCard ? all.findIndex(c => c.id === targetCard.id) : all.length;
+              all.splice(Math.max(0, ti), 0, draggedCard);
+              onUpdate({ ...collection, cards: all });
+            }} />
         : <div className="col-wrap">
           <div className="sec-title">{visible.length} carte{visible.length !== 1 ? 's' : ''}</div>
           {visible.length === 0
@@ -1064,11 +1069,13 @@ function CollectionPage({ collection, allCollections, onUpdate, onAddToCollectio
 }
 
 // ─── BINDER SLOT ─────────────────────────────────────────────────────────────
-function BinderSlot({ card, onZoom, onToggle, onEdit, onDelete }) {
+function BinderSlot({ card, slotIndex, onZoom, onToggle, onEdit, onDelete,
+  onDragStart, onDragOver, onDragEnd, onDrop, isDragOver }) {
   const slotRef = useRef(null);
   const glareRef = useRef(null);
 
   const onMouseMove = useCallback((e) => {
+    if (!card) return;
     const el = slotRef.current; if (!el) return;
     const r = el.getBoundingClientRect();
     const x = (e.clientX - r.left) / r.width;
@@ -1085,7 +1092,7 @@ function BinderSlot({ card, onZoom, onToggle, onEdit, onDelete }) {
           rgba(255,255,255,.36) 0%, rgba(255,255,255,.08) 38%, transparent 68%)`;
       glareRef.current.style.opacity = '1';
     }
-  }, []);
+  }, [card]);
 
   const onMouseLeave = useCallback(() => {
     const el = slotRef.current; if (!el) return;
@@ -1096,11 +1103,23 @@ function BinderSlot({ card, onZoom, onToggle, onEdit, onDelete }) {
     if (glareRef.current) glareRef.current.style.opacity = '0';
   }, []);
 
-  if (!card) return <div className="binder-slot binder-slot-empty" />;
+  if (!card) {
+    return (
+      <div className={`binder-slot binder-slot-empty${isDragOver ? ' drag-over-slot' : ''}`}
+        onDragOver={e => { e.preventDefault(); onDragOver(slotIndex); }}
+        onDrop={() => onDrop(slotIndex)} />
+    );
+  }
 
   return (
-    <div ref={slotRef} className="binder-slot"
-      onMouseMove={onMouseMove} onMouseLeave={onMouseLeave}>
+    <div ref={slotRef}
+      className={`binder-slot${isDragOver ? ' drag-over-slot' : ''}`}
+      draggable
+      onMouseMove={onMouseMove} onMouseLeave={onMouseLeave}
+      onDragStart={() => onDragStart(slotIndex)}
+      onDragOver={e => { e.preventDefault(); onDragOver(slotIndex); }}
+      onDragEnd={onDragEnd}
+      onDrop={() => onDrop(slotIndex)}>
       <div className={`bc${card.obtained ? ' got' : ''}`}>
         {card.src
           ? <img src={card.src} alt={card.name} loading="lazy" onClick={() => onZoom(card)} />
@@ -1129,31 +1148,58 @@ function BinderSlot({ card, onZoom, onToggle, onEdit, onDelete }) {
 // ─── BINDER VIEW ──────────────────────────────────────────────────────────────
 const CARDS_PER_SPREAD = 18; // 9 per page × 2 pages
 
-function BinderView({ cards, onZoom, onToggle, onEdit, onDelete }) {
+function BinderView({ cards, collectionId, onZoom, onToggle, onEdit, onDelete, onReorder }) {
   const [spread, setSpread] = useState(0);
   const [animClass, setAnimClass] = useState('');
+  const [dragSlot, setDragSlot] = useState(null);   // absolute slot index being dragged
+  const [overSlot, setOverSlot] = useState(null);   // absolute slot index being hovered
 
   const totalSpreads = Math.max(1, Math.ceil(cards.length / CARDS_PER_SPREAD));
 
-  // Reset to page 1 when card list changes significantly
-  useEffect(() => { setSpread(0); }, [cards.length === 0]);
+  // ── Reset spread to 0 when switching collections (collectionId changes) ──
+  useEffect(() => { setSpread(0); setDragSlot(null); setOverSlot(null); }, [collectionId]);
+
+  // Also clamp spread if new collection has fewer spreads
+  useEffect(() => {
+    if (spread >= totalSpreads) setSpread(Math.max(0, totalSpreads - 1));
+  }, [totalSpreads, spread]);
 
   const navigate = (dir) => {
     if (animClass) return;
     const next = spread + dir;
     if (next < 0 || next >= totalSpreads) return;
-    // Phase 1: out animation
     setAnimClass(dir > 0 ? 'b-out-next' : 'b-out-prev');
     setTimeout(() => {
-      // Swap content while invisible
       setSpread(next);
-      // Phase 2: in animation
       setAnimClass('b-in');
       setTimeout(() => setAnimClass(''), 220);
     }, 200);
   };
 
+  // ── Drag-drop: slot indices are absolute (0 = card 0, 17 = last on spread 1)
+  //    but we work across ALL cards so a slot on spread N maps to cards[base + slotInSpread]
+  const spreadSlotToCardIndex = (absoluteSlot) => {
+    const spreadNum = Math.floor(absoluteSlot / CARDS_PER_SPREAD);
+    const slotInSpread = absoluteSlot % CARDS_PER_SPREAD;
+    return spreadNum * CARDS_PER_SPREAD + slotInSpread;
+  };
+
+  const handleDragStart = (absSlot) => { setDragSlot(absSlot); };
+  const handleDragOver  = (absSlot) => { if (absSlot !== dragSlot) setOverSlot(absSlot); };
+  const handleDragEnd   = () => { setDragSlot(null); setOverSlot(null); };
+  const handleDrop      = (absSlot) => {
+    if (dragSlot === null || dragSlot === absSlot) { handleDragEnd(); return; }
+    const from = spreadSlotToCardIndex(dragSlot);
+    const to   = spreadSlotToCardIndex(absSlot);
+    // from must point to a real card; to can be empty (beyond array end)
+    if (from < cards.length) {
+      onReorder(from, to);
+    }
+    handleDragEnd();
+  };
+
   const base = spread * CARDS_PER_SPREAD;
+  const absOffset = spread * CARDS_PER_SPREAD; // absolute slot 0 on this spread
   const leftCards  = Array.from({ length: 9 }, (_, i) => cards[base + i]     || null);
   const rightCards = Array.from({ length: 9 }, (_, i) => cards[base + 9 + i] || null);
   const leftPageNum  = spread * 2 + 1;
@@ -1182,29 +1228,41 @@ function BinderView({ cards, onZoom, onToggle, onEdit, onDelete }) {
       {/* Binder book */}
       <div className={`binder-book-wrap${animClass ? ' ' + animClass : ''}`}>
         <div className="binder-book">
-          {/* Metal spine with rings */}
+          {/* Left page */}
+          <div className="binder-page binder-page-left">
+            {leftCards.map((card, i) => {
+              const abs = absOffset + i;
+              return (
+                <BinderSlot key={`L-${base}-${i}`}
+                  card={card} slotIndex={abs}
+                  onZoom={onZoom} onToggle={onToggle} onEdit={onEdit} onDelete={onDelete}
+                  onDragStart={handleDragStart} onDragOver={handleDragOver}
+                  onDragEnd={handleDragEnd} onDrop={handleDrop}
+                  isDragOver={overSlot === abs} />
+              );
+            })}
+          </div>
+
+          {/* Metal spine — order:2 puts it between the pages */}
           <div className="binder-spine">
             <div className="binder-ring" />
             <div className="binder-ring" />
             <div className="binder-ring" />
           </div>
 
-          {/* Left page */}
-          <div className="binder-page binder-page-left">
-            {leftCards.map((card, i) => (
-              <BinderSlot key={`L-${base}-${i}`}
-                card={card} onZoom={onZoom}
-                onToggle={onToggle} onEdit={onEdit} onDelete={onDelete} />
-            ))}
-          </div>
-
           {/* Right page */}
           <div className="binder-page binder-page-right">
-            {rightCards.map((card, i) => (
-              <BinderSlot key={`R-${base}-${i}`}
-                card={card} onZoom={onZoom}
-                onToggle={onToggle} onEdit={onEdit} onDelete={onDelete} />
-            ))}
+            {rightCards.map((card, i) => {
+              const abs = absOffset + 9 + i;
+              return (
+                <BinderSlot key={`R-${base}-${i}`}
+                  card={card} slotIndex={abs}
+                  onZoom={onZoom} onToggle={onToggle} onEdit={onEdit} onDelete={onDelete}
+                  onDragStart={handleDragStart} onDragOver={handleDragOver}
+                  onDragEnd={handleDragEnd} onDrop={handleDrop}
+                  isDragOver={overSlot === abs} />
+              );
+            })}
           </div>
         </div>
       </div>
