@@ -8,7 +8,7 @@ const TCGDEX = "https://api.tcgdex.net/v2/fr";
 //   1. Copiez votre fichier (PNG/SVG/WEBP) dans le dossier  public/  du projet
 //   2. Remplacez null par le chemin :  const CUSTOM_LOGO_URL = '/mon-logo.png';
 //   Ou utilisez une URL distante :     const CUSTOM_LOGO_URL = 'https://…/logo.svg';
-const CUSTOM_LOGO_URL = '/logo.png';
+const CUSTOM_LOGO_URL = null;
 
 // ─── RARETÉ ──────────────────────────────────────────────────────────────────
 function rarityColor(r) {
@@ -164,19 +164,7 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 .tbar-lbl{font-size:.6rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted)}
 .tbar-sep{width:1px;height:20px;background:var(--border);flex-shrink:0}
 
-/* ── UPLOAD ── */
-.upsec{padding:14px 28px;flex-shrink:0}
-.upzone{display:block;width:100%;border:2px dashed var(--border2);border-radius:var(--radius);
-  padding:22px 20px;cursor:pointer;transition:all .2s;background:var(--surface)}
-.upzone:hover,.upzone.drag{border-color:var(--red);background:rgba(200,40,40,.04)}
-.upzone input{display:none}
-.up-inner{display:flex;align-items:center;gap:16px;justify-content:center}
-.up-orb{width:42px;height:42px;border-radius:50%;background:var(--surface2);
-  border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;
-  font-size:1.2rem;flex-shrink:0}
-.up-t1{font-weight:700;font-size:.88rem}
-.up-t2{font-size:.7rem;color:var(--muted);margin-top:2px}
-.up-t2 span{color:var(--red2);font-weight:600}
+
 
 /* ── IMPORT PANEL ── */
 .imp-panel{margin:0 28px 14px;flex-shrink:0;background:var(--surface);
@@ -217,13 +205,15 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
   border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
 @keyframes spin{to{transform:rotate(360deg)}}
 
-/* ── TILT CARD (new scanflip-style) ── */
+/* ── TILT CARD (scanflip-style) ── */
+/* fadeUp lives on the OUTER wrapper div (inline style), NOT here,
+   to avoid fill-mode conflicting with JS-applied transforms */
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px) scale(.96)}to{opacity:1;transform:none}}
 .tilt-wrap{
   position:relative;border-radius:11px;
   will-change:transform;cursor:pointer;
-  animation:fadeUp .28s ease both;
+  transform-style:preserve-3d;
 }
-@keyframes fadeUp{from{opacity:0;transform:translateY(10px) scale(.96)}to{opacity:1;transform:none}}
 .tilt-wrap.drag-over .card{border-color:var(--red2)!important;box-shadow:0 0 0 2px var(--red2)!important}
 .card{
   width:100%;border-radius:11px;overflow:hidden;
@@ -403,9 +393,110 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 .empty p{font-size:.78rem}
 
 @media(max-width:768px){
-  .page-hdr,.tbar,.upsec,.col-wrap,.prog,.browse-sets-grid,.browse-grid,.account-wrap,.serie-header,.browse-scroll>*{padding-left:14px;padding-right:14px}
+  .page-hdr,.tbar,.col-wrap,.prog,.browse-sets-grid,.browse-grid,.account-wrap,.serie-header,.browse-scroll>*{padding-left:14px;padding-right:14px}
   .imp-panel{margin-left:14px;margin-right:14px}
   .bulk-bar{width:92%;border-radius:16px;bottom:16px}
+}
+
+/* ── BINDER VIEW ── */
+.binder-outer{padding:14px 20px 80px;flex:1;background:var(--bg);
+  display:flex;flex-direction:column;align-items:center;gap:14px;overflow-y:auto}
+.binder-nav{display:flex;align-items:center;gap:14px;width:100%;max-width:940px;
+  justify-content:space-between;flex-wrap:wrap}
+.binder-page-label{font-size:.72rem;color:var(--muted);font-weight:600;letter-spacing:1px;
+  text-align:center;flex:1}
+
+/* Perspective wrapper – animation sits here */
+.binder-book-wrap{width:100%;max-width:940px;perspective:1200px;}
+.binder-book-wrap.b-out-next{animation:bOutNext .2s ease forwards}
+.binder-book-wrap.b-out-prev{animation:bOutPrev .2s ease forwards}
+.binder-book-wrap.b-in{animation:bIn .22s ease forwards}
+@keyframes bOutNext{0%{opacity:1;transform:none}100%{opacity:0;transform:translateX(-2%) scale(.97) rotateY(4deg)}}
+@keyframes bOutPrev{0%{opacity:1;transform:none}100%{opacity:0;transform:translateX(2%) scale(.97) rotateY(-4deg)}}
+@keyframes bIn{0%{opacity:0;transform:scale(.97)}100%{opacity:1;transform:none}}
+
+/* Physical binder */
+.binder-book{display:flex;border-radius:6px 14px 14px 6px;overflow:hidden;
+  box-shadow:-6px 0 0 #060402,0 28px 80px rgba(0,0,0,.85),
+    inset 2px 0 16px rgba(0,0,0,.45);}
+
+/* Spine */
+.binder-spine{width:34px;flex-shrink:0;
+  background:linear-gradient(to right,#0a0703 0%,#1c1108 25%,#261710 50%,#1c1108 75%,#0a0703 100%);
+  display:flex;flex-direction:column;align-items:center;
+  justify-content:space-evenly;padding:24px 0;
+  box-shadow:inset -2px 0 8px rgba(0,0,0,.6);position:relative;z-index:2;}
+.binder-ring{width:20px;height:20px;border-radius:50%;flex-shrink:0;
+  background:conic-gradient(from 110deg,#b0b0b0 0deg,#f0f0f0 55deg,#909090 110deg,
+    #606060 175deg,#b0b0b0 235deg,#d8d8d8 295deg,#b0b0b0 360deg);
+  box-shadow:0 0 0 2px #2a2018,0 2px 6px rgba(0,0,0,.75),
+    inset 0 1px 2px rgba(255,255,255,.2);position:relative;}
+.binder-ring::after{content:'';position:absolute;inset:5px;border-radius:50%;
+  background:radial-gradient(circle,#3a3028 40%,#1a1008 100%);
+  box-shadow:inset 0 1px 4px rgba(0,0,0,.9);}
+
+/* Pages */
+.binder-page{flex:1;padding:12px;
+  background:linear-gradient(160deg,#221810 0%,#1a1008 50%,#140e06 100%);
+  display:grid;grid-template-columns:repeat(3,1fr);gap:7px;position:relative;}
+.binder-page-left{border-right:3px solid rgba(0,0,0,.7);
+  box-shadow:inset -6px 0 16px rgba(0,0,0,.5);}
+.binder-page-right{box-shadow:inset 4px 0 12px rgba(0,0,0,.25);}
+/* Subtle horizontal line texture */
+.binder-page::before{content:'';position:absolute;inset:0;pointer-events:none;
+  background:repeating-linear-gradient(
+    0deg,transparent,transparent 30px,
+    rgba(255,255,255,.014) 30px,rgba(255,255,255,.014) 31px);}
+
+/* Card pocket / slot */
+.binder-slot{aspect-ratio:2.5/3.5;border-radius:7px;position:relative;
+  background:rgba(0,0,0,.38);
+  box-shadow:inset 0 2px 8px rgba(0,0,0,.65),inset 0 0 0 1px rgba(255,255,255,.045);
+  will-change:transform;cursor:pointer;overflow:visible;}
+.binder-slot-empty{background:rgba(0,0,0,.22);cursor:default;
+  box-shadow:inset 0 1px 4px rgba(0,0,0,.5),inset 0 0 0 1px rgba(255,255,255,.03);}
+.binder-slot-empty::after{content:'';position:absolute;inset:0;border-radius:7px;
+  background:repeating-linear-gradient(45deg,
+    rgba(255,255,255,.016) 0,rgba(255,255,255,.016) 1px,transparent 0,transparent 50%);
+  background-size:6px 6px;}
+
+/* Card inside pocket */
+.bc{position:absolute;inset:0;border-radius:6px;overflow:hidden;display:flex;}
+.bc.got{outline:1.5px solid rgba(58,184,112,.45);}
+.bc img{width:100%;height:100%;object-fit:cover;display:block;}
+.bc-placeholder{width:100%;height:100%;background:var(--surface2);
+  display:flex;align-items:center;justify-content:center;opacity:.12;font-size:1rem;}
+.bc-not-obtained{position:absolute;inset:0;
+  background:rgba(0,0,0,.52);border-radius:6px;}
+.bc-badge{position:absolute;bottom:3px;right:3px;width:13px;height:13px;border-radius:50%;
+  background:var(--green);color:#fff;font-size:.42rem;font-weight:900;
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 1px 4px rgba(0,0,0,.6);z-index:3;}
+.bc-glare{position:absolute;inset:0;pointer-events:none;z-index:10;opacity:0;
+  transition:opacity .3s;border-radius:inherit;}
+
+/* Hover actions */
+.bc-hover{position:absolute;inset:0;border-radius:6px;z-index:15;
+  display:flex;flex-direction:column;align-items:center;justify-content:flex-end;
+  padding:4px;
+  background:linear-gradient(to top,rgba(10,8,14,.94) 0%,transparent 56%);
+  opacity:0;transition:opacity .18s;pointer-events:none;}
+.binder-slot:hover .bc-hover{opacity:1;pointer-events:all;}
+.bc-acts{display:flex;gap:3px;}
+.bc-btn{border:none;border-radius:5px;cursor:pointer;font-size:.5rem;font-weight:700;
+  padding:3px 6px;font-family:'Outfit',sans-serif;transition:all .12s;line-height:1.4;}
+.bc-ok{background:var(--green);color:#fff;}
+.bc-mark{background:var(--surface2);color:var(--text2);border:1px solid var(--border2);}
+.bc-mark:hover{background:rgba(58,184,112,.2);border-color:var(--green);}
+.bc-edit{background:var(--surface2);color:var(--text2);border:1px solid var(--border2);}
+.bc-del{background:rgba(200,40,40,.15);color:var(--red2);border:1px solid rgba(200,40,40,.3);}
+
+@media(max-width:768px){
+  .binder-outer{padding:10px 6px 80px;}
+  .binder-page{padding:7px;gap:4px;}
+  .binder-spine{width:22px;}
+  .binder-ring{width:14px;height:14px;}
+  .binder-ring::after{inset:4px;}
 }
 `;
 
@@ -707,13 +798,11 @@ function CollectionPage({ collection, allCollections, onUpdate, onAddToCollectio
   const [impErr, setImpErr] = useState('');
   // Import card selection: null = all selected, Set = specific ids selected
   const [impSel, setImpSel] = useState(null);
-  const [drag, setDrag] = useState(false);
   const [pickModal, setPickModal] = useState(null);
   const [selMode, setSelMode] = useState(false);
   const [selected, setSelected] = useState(new Set());
   const dragIdx = useRef(null);
   const [dragOverIdx, setDragOverIdx] = useState(null);
-  const fileRef = useRef(null);
 
   useEffect(() => { if (!selMode) setSelected(new Set()); }, [selMode]);
   useEffect(() => { if (impState !== 'preview') setImpSel(null); }, [impState]);
@@ -776,25 +865,6 @@ function CollectionPage({ collection, allCollections, onUpdate, onAddToCollectio
     setImpState('idle'); setImpCards([]); setImpSel(null); setPickModal(null);
   };
 
-  const doUpload = (targetColId, newCards) => {
-    onAddToCollection(targetColId, newCards);
-    showToast(`${newCards.length} carte${newCards.length > 1 ? 's' : ''} ajoutée${newCards.length > 1 ? 's' : ''} ✦`);
-    setPickModal(null);
-  };
-
-  const handleFiles = (files) => {
-    const imgs = Array.from(files).filter(f => f.type.startsWith('image/')); if (!imgs.length) return;
-    let done = 0; const news = [];
-    imgs.forEach(file => {
-      const r = new FileReader(); r.onload = ev => {
-        news.push({ id: `local-${Date.now()}-${Math.random()}`, src: ev.target.result, name: file.name.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' '), series: '', number: '', rarity: '', obtained: false });
-        if (++done === imgs.length) {
-          if (allCollections.length > 1) setPickModal({ type: 'upload', data: news });
-          else doUpload(collection.id, news);
-        }
-      }; r.readAsDataURL(file);
-    });
-  };
 
   const toggleObtained = id => {
     const next = cards.map(c => c.id === id ? { ...c, obtained: !c.obtained } : c);
@@ -840,7 +910,7 @@ function CollectionPage({ collection, allCollections, onUpdate, onAddToCollectio
   const total = cards.length, obtained = cards.filter(c => c.obtained).length;
   const pct = total === 0 ? 0 : Math.round((obtained / total) * 100);
   const visible = filter === 'obtained' ? cards.filter(c => c.obtained) : filter === 'missing' ? cards.filter(c => !c.obtained) : cards;
-  const layouts = [{ id: 'g6', icon: '⋮⋮⋮', label:'Grille' }, { id: 'g3', icon: '▦', label:'3×3' }, { id: 'glist', icon: '☰', label:'Liste' }];
+  const layouts = [{ id: 'g6', icon: '⋮⋮⋮', label:'Grille' }, { id: 'g3', icon: '▦', label:'3×3' }, { id: 'glist', icon: '☰', label:'Liste' }, { id: 'binder', icon: '📖', label:'Classeur' }];
   const filters = [{ id: 'all', label: 'Toutes' }, { id: 'obtained', label: 'Obtenues' }, { id: 'missing', label: 'Manquantes' }];
 
   if (!collection) return <div className="empty"><span className="empty-icon">📋</span><h3>Aucune collection</h3><p>Créez une collection dans le menu de gauche.</p></div>;
@@ -850,14 +920,11 @@ function CollectionPage({ collection, allCollections, onUpdate, onAddToCollectio
       <div className="page-hdr">
         <div className="page-title"><span>{collection.name}</span></div>
         <div className="page-hdr-actions">
-          <input ref={fileRef} type="file" multiple accept="image/*" style={{ display: 'none' }} onChange={e => { handleFiles(e.target.files); e.target.value = ''; }} />
           {isDirty && (
-            <button className="btn btn-red" onClick={onSave} disabled={isSaving}
-              style={{ gap: 6 }}>
+            <button className="btn btn-red" onClick={onSave} disabled={isSaving} style={{ gap: 6 }}>
               {isSaving ? <><div className="spinner" style={{width:12,height:12,borderWidth:2}} />Sauvegarde…</> : '💾 Sauvegarder'}
             </button>
           )}
-          <button className="btn" onClick={() => fileRef.current?.click()}>＋ Ajouter</button>
           <button className={`btn btn-sm${selMode ? ' btn-red' : ''}`} onClick={() => setSelMode(v => !v)}>
             {selMode ? '✕ Quitter sélection' : '☑ Sélectionner'}
           </button>
@@ -928,41 +995,38 @@ function CollectionPage({ collection, allCollections, onUpdate, onAddToCollectio
         </div>}
       </div>
 
-      {/* Upload zone */}
-      <div className="upsec">
-        <label className={`upzone${drag ? ' drag' : ''}`}
-          onDragOver={e => { e.preventDefault(); setDrag(true); }}
-          onDragLeave={() => setDrag(false)}
-          onDrop={e => { e.preventDefault(); setDrag(false); handleFiles(e.dataTransfer.files); }}>
-          <input type="file" multiple accept="image/*" onChange={e => { handleFiles(e.target.files); e.target.value = ''; }} />
-          <div className="up-inner"><div className="up-orb">🃏</div><div><div className="up-t1">Déposer vos photos de cartes ici</div><div className="up-t2"><span>Cliquer pour sélectionner</span> ou glisser-déposer · PNG, JPG, WEBP</div></div></div>
-        </label>
-      </div>
 
-      {/* Card grid */}
-      <div className="col-wrap">
-        <div className="sec-title">{visible.length} carte{visible.length !== 1 ? 's' : ''}</div>
-        {visible.length === 0
-          ? <div className="empty">
-            <span className="empty-icon">{filter === 'missing' && total > 0 ? '🏆' : '◈'}</span>
-            <h3>{filter === 'missing' && total > 0 ? 'Collection complète !' : 'Aucune carte'}</h3>
-            <p>{filter === 'missing' && total > 0 ? 'Toutes vos cartes sont obtenues.' : 'Importez une extension ou ajoutez vos photos.'}</p>
-          </div>
-          : <div className={`grid ${layout}`}>
-            {visible.map((card, i) => (
-              <div key={card.id} style={{ animationDelay: `${Math.min(i * .022, .45)}s` }}>
-                <TiltCard card={card} onToggle={toggleObtained} onEdit={openEdit} onDelete={deleteCard} onZoom={setZoomCard}
-                  listMode={layout === 'glist'} selMode={selMode} selected={selected.has(card.id)} onSelect={toggleSelect}
-                  isDraggable={!selMode && filter === 'all'}
-                  onDragStart={() => handleDragStart(i)} onDragOver={e => handleDragOver(e, i)}
-                  onDragEnd={handleDragEnd} onDrop={() => handleDrop(i)}
-                  dragOver={dragOverIdx === i && dragIdx.current !== null && dragIdx.current !== i}
-                />
-              </div>
-            ))}
-          </div>
-        }
-      </div>
+      {/* Card grid / binder */}
+      {layout === 'binder'
+        ? <BinderView cards={visible} onZoom={setZoomCard}
+            onToggle={toggleObtained} onEdit={openEdit} onDelete={deleteCard} />
+        : <div className="col-wrap">
+          <div className="sec-title">{visible.length} carte{visible.length !== 1 ? 's' : ''}</div>
+          {visible.length === 0
+            ? <div className="empty">
+              <span className="empty-icon">{filter === 'missing' && total > 0 ? '🏆' : '◈'}</span>
+              <h3>{filter === 'missing' && total > 0 ? 'Collection complète !' : 'Aucune carte'}</h3>
+              <p>{filter === 'missing' && total > 0 ? 'Toutes vos cartes sont obtenues.' : 'Importez une extension depuis TCGdex.'}</p>
+            </div>
+            : <div className={`grid ${layout}`}>
+              {visible.map((card, i) => (
+                <div key={card.id} style={{
+                  animation:'fadeUp .28s ease both',
+                  animationDelay:`${Math.min(i * .022, .45)}s`
+                }}>
+                  <TiltCard card={card} onToggle={toggleObtained} onEdit={openEdit} onDelete={deleteCard} onZoom={setZoomCard}
+                    listMode={layout === 'glist'} selMode={selMode} selected={selected.has(card.id)} onSelect={toggleSelect}
+                    isDraggable={!selMode && filter === 'all'}
+                    onDragStart={() => handleDragStart(i)} onDragOver={e => handleDragOver(e, i)}
+                    onDragEnd={handleDragEnd} onDrop={() => handleDrop(i)}
+                    dragOver={dragOverIdx === i && dragIdx.current !== null && dragIdx.current !== i}
+                  />
+                </div>
+              ))}
+            </div>
+          }
+        </div>
+      }
 
       {/* Bulk bar */}
       <div className={`bulk-bar${selMode && selected.size > 0 ? ' show' : ''}`}>
@@ -994,7 +1058,156 @@ function CollectionPage({ collection, allCollections, onUpdate, onAddToCollectio
       <ZoomModal card={zoomCard} onClose={() => setZoomCard(null)} />
       <PickCollectionModal open={!!pickModal} collections={allCollections} defaultId={collection.id}
         onClose={() => setPickModal(null)}
-        onConfirm={colId => { if (pickModal?.type === 'import') doImport(colId); else if (pickModal?.type === 'upload') doUpload(colId, pickModal.data); }} />
+        onConfirm={colId => { if (pickModal?.type === 'import') doImport(colId); }} />
+    </div>
+  );
+}
+
+// ─── BINDER SLOT ─────────────────────────────────────────────────────────────
+function BinderSlot({ card, onZoom, onToggle, onEdit, onDelete }) {
+  const slotRef = useRef(null);
+  const glareRef = useRef(null);
+
+  const onMouseMove = useCallback((e) => {
+    const el = slotRef.current; if (!el) return;
+    const r = el.getBoundingClientRect();
+    const x = (e.clientX - r.left) / r.width;
+    const y = (e.clientY - r.top) / r.height;
+    const rotX = (y - 0.5) * -24;
+    const rotY = (x - 0.5) * 24;
+    el.style.transform = `perspective(500px) rotateX(${rotX}deg) rotateY(${rotY}deg) scale(1.1) translateZ(6px)`;
+    el.style.transition = 'transform .05s linear';
+    el.style.zIndex = '20';
+    el.style.filter = `drop-shadow(${-rotY * 0.5}px ${rotX * 0.4 + 14}px 18px rgba(0,0,0,.75))`;
+    if (glareRef.current) {
+      glareRef.current.style.background = `
+        radial-gradient(ellipse 60% 50% at ${x*100}% ${y*100}%,
+          rgba(255,255,255,.36) 0%, rgba(255,255,255,.08) 38%, transparent 68%)`;
+      glareRef.current.style.opacity = '1';
+    }
+  }, []);
+
+  const onMouseLeave = useCallback(() => {
+    const el = slotRef.current; if (!el) return;
+    el.style.transform = '';
+    el.style.transition = 'transform .65s cubic-bezier(.23,1,.32,1)';
+    el.style.zIndex = '';
+    el.style.filter = '';
+    if (glareRef.current) glareRef.current.style.opacity = '0';
+  }, []);
+
+  if (!card) return <div className="binder-slot binder-slot-empty" />;
+
+  return (
+    <div ref={slotRef} className="binder-slot"
+      onMouseMove={onMouseMove} onMouseLeave={onMouseLeave}>
+      <div className={`bc${card.obtained ? ' got' : ''}`}>
+        {card.src
+          ? <img src={card.src} alt={card.name} loading="lazy" onClick={() => onZoom(card)} />
+          : <div className="bc-placeholder" onClick={() => onZoom(card)}>🃏</div>
+        }
+        {!card.obtained && <div className="bc-not-obtained" onClick={() => onZoom(card)} />}
+        {card.obtained && <div className="bc-badge">✓</div>}
+        <div ref={glareRef} className="bc-glare" />
+        <div className="bc-hover">
+          <div className="bc-acts">
+            <button className={`bc-btn ${card.obtained ? 'bc-ok' : 'bc-mark'}`}
+              onClick={e => { e.stopPropagation(); onToggle(card.id); }}>
+              {card.obtained ? '✓' : '＋'}
+            </button>
+            <button className="bc-btn bc-edit"
+              onClick={e => { e.stopPropagation(); onEdit(card); }}>✏️</button>
+            <button className="bc-btn bc-del"
+              onClick={e => { e.stopPropagation(); onDelete(card.id); }}>✕</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── BINDER VIEW ──────────────────────────────────────────────────────────────
+const CARDS_PER_SPREAD = 18; // 9 per page × 2 pages
+
+function BinderView({ cards, onZoom, onToggle, onEdit, onDelete }) {
+  const [spread, setSpread] = useState(0);
+  const [animClass, setAnimClass] = useState('');
+
+  const totalSpreads = Math.max(1, Math.ceil(cards.length / CARDS_PER_SPREAD));
+
+  // Reset to page 1 when card list changes significantly
+  useEffect(() => { setSpread(0); }, [cards.length === 0]);
+
+  const navigate = (dir) => {
+    if (animClass) return;
+    const next = spread + dir;
+    if (next < 0 || next >= totalSpreads) return;
+    // Phase 1: out animation
+    setAnimClass(dir > 0 ? 'b-out-next' : 'b-out-prev');
+    setTimeout(() => {
+      // Swap content while invisible
+      setSpread(next);
+      // Phase 2: in animation
+      setAnimClass('b-in');
+      setTimeout(() => setAnimClass(''), 220);
+    }, 200);
+  };
+
+  const base = spread * CARDS_PER_SPREAD;
+  const leftCards  = Array.from({ length: 9 }, (_, i) => cards[base + i]     || null);
+  const rightCards = Array.from({ length: 9 }, (_, i) => cards[base + 9 + i] || null);
+  const leftPageNum  = spread * 2 + 1;
+  const rightPageNum = spread * 2 + 2;
+  const shownCount = [...leftCards, ...rightCards].filter(Boolean).length;
+
+  return (
+    <div className="binder-outer">
+      {/* Navigation */}
+      <div className="binder-nav">
+        <button className="btn btn-ghost btn-sm"
+          onClick={() => navigate(-1)} disabled={spread === 0 || !!animClass}>
+          ◀ Précédent
+        </button>
+        <span className="binder-page-label">
+          Pages {leftPageNum}–{rightPageNum} / {totalSpreads * 2}
+          &nbsp;·&nbsp;{shownCount} carte{shownCount !== 1 ? 's' : ''}
+          &nbsp;·&nbsp;Spread {spread + 1}/{totalSpreads}
+        </span>
+        <button className="btn btn-ghost btn-sm"
+          onClick={() => navigate(1)} disabled={spread >= totalSpreads - 1 || !!animClass}>
+          Suivant ▶
+        </button>
+      </div>
+
+      {/* Binder book */}
+      <div className={`binder-book-wrap${animClass ? ' ' + animClass : ''}`}>
+        <div className="binder-book">
+          {/* Metal spine with rings */}
+          <div className="binder-spine">
+            <div className="binder-ring" />
+            <div className="binder-ring" />
+            <div className="binder-ring" />
+          </div>
+
+          {/* Left page */}
+          <div className="binder-page binder-page-left">
+            {leftCards.map((card, i) => (
+              <BinderSlot key={`L-${base}-${i}`}
+                card={card} onZoom={onZoom}
+                onToggle={onToggle} onEdit={onEdit} onDelete={onDelete} />
+            ))}
+          </div>
+
+          {/* Right page */}
+          <div className="binder-page binder-page-right">
+            {rightCards.map((card, i) => (
+              <BinderSlot key={`R-${base}-${i}`}
+                card={card} onZoom={onZoom}
+                onToggle={onToggle} onEdit={onEdit} onDelete={onDelete} />
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
