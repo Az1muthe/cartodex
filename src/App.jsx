@@ -109,6 +109,10 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 .btn-sm{padding:5px 12px;font-size:.72rem}
 .btn-xs{padding:2px 7px;font-size:.68rem;border-radius:6px}
 .btn-ok{background:rgba(58,184,112,.12);border-color:var(--green);color:var(--green)}
+.btn-outline-accent{background:rgba(200,40,40,.06);border-color:rgba(200,40,40,.45);color:var(--red2)}
+.btn-outline-accent:hover{background:rgba(200,40,40,.14)}
+.btn-sel-util{background:rgba(255,255,255,.08);border:1.5px solid rgba(255,255,255,.25);color:var(--text);font-weight:700;letter-spacing:.3px}
+.btn-sel-util:hover{background:rgba(255,255,255,.15);border-color:rgba(255,255,255,.4)}
 .btn-ok:hover{background:var(--green);color:#fff}
 .chip{padding:5px 13px;border-radius:999px;border:1px solid var(--border);background:transparent;
   font-family:'Outfit',sans-serif;font-size:.72rem;font-weight:600;color:var(--muted);cursor:pointer;transition:all .14s}
@@ -814,6 +818,7 @@ function CollectionPage({ collection, allCollections, onUpdate, onAddToCollectio
   const [pickModal, setPickModal] = useState(null);
   const [selMode, setSelMode] = useState(false);
   const [selected, setSelected] = useState(new Set());
+  const [confirmVider, setConfirmVider] = useState(false);
   const dragIdx = useRef(null);
   const [dragOverIdx, setDragOverIdx] = useState(null);
 
@@ -979,10 +984,15 @@ function CollectionPage({ collection, allCollections, onUpdate, onAddToCollectio
               {isSaving ? <><div className="spinner" style={{width:12,height:12,borderWidth:2}} />Sauvegarde…</> : '💾 Sauvegarder'}
             </button>
           )}
-          <button className={`btn btn-sm${selMode ? ' btn-red' : ''}`} onClick={() => setSelMode(v => !v)}>
+          <button className={`btn${selMode ? ' btn-red' : ' btn-outline-accent'}`}
+            style={{ minWidth: 130 }} onClick={() => setSelMode(v => !v)}>
             {selMode ? '✕ Quitter sélection' : '☑ Sélectionner'}
           </button>
-          {total > 0 && <button className="btn btn-danger btn-sm" onClick={() => onUpdate({ ...collection, cards: [] })}>Vider</button>}
+          {total > 0 && (
+            <button className="btn btn-danger" onClick={() => setConfirmVider(true)}>
+              🗑 Vider
+            </button>
+          )}
         </div>
       </div>
 
@@ -997,7 +1007,7 @@ function CollectionPage({ collection, allCollections, onUpdate, onAddToCollectio
         {layouts.map(l => <button key={l.id} className={`chip${layout === l.id ? ' on' : ''}`} onClick={() => setLayout(l.id)}>{l.icon}</button>)}
         <div className="tbar-sep" />
         {filters.map(f => <button key={f.id} className={`chip${filter === f.id ? ' on' : ''}`} onClick={() => setFilter(f.id)}>{f.label}</button>)}
-        {selMode && <><div className="tbar-sep" /><button className="btn btn-ghost btn-sm" onClick={selectAll}>Tout</button><button className="btn btn-ghost btn-sm" onClick={clearSel}>Aucun</button></>}
+        {selMode && <><div className="tbar-sep" /><button className="btn btn-sel-util btn-sm" onClick={selectAll}>Tout</button><button className="btn btn-sel-util btn-sm" onClick={clearSel}>Aucun</button></>}
         {!selMode && <><div className="tbar-sep" /><span style={{ fontSize: '.65rem', color: 'var(--muted)' }}>⠿ Glisser-déposer pour réordonner</span></>}
       </div>
 
@@ -1133,6 +1143,12 @@ function CollectionPage({ collection, allCollections, onUpdate, onAddToCollectio
       <PickCollectionModal open={!!pickModal} collections={allCollections} defaultId={collection.id}
         onClose={() => setPickModal(null)}
         onConfirm={colId => { if (pickModal?.type === 'import') doImport(colId); }} />
+      {/* Confirmation vider la collection */}
+      <ConfirmModal open={confirmVider}
+        title="🗑 Vider la collection"
+        message={`Supprimer toutes les ${total} cartes de "${collection.name}" ? Cette action est irréversible.`}
+        onConfirm={() => { onUpdate({ ...collection, cards: [] }); showToast('Collection vidée', '#c82828'); }}
+        onClose={() => setConfirmVider(false)} />
     </div>
   );
 }
@@ -1342,6 +1358,10 @@ function BinderView({ cards, collectionId, onZoom, onToggle, onEdit, onDelete, o
 // Module-level caches — survive BrowsePage unmount/remount
 let _seriesCache = null;          // Grouped series (fetched once per session)
 const _rarityCache = new Map();   // cardId → rarity string
+// Force fresh fetch if this is the broken "all-in-other" version
+if (_seriesCache && _seriesCache.length === 1 && _seriesCache[0]?.id === 'other') {
+  _seriesCache = null;
+}
 
 // ─── BROWSE PAGE ──────────────────────────────────────────────────────────────
 function BrowsePage({ allCollections, onAddToCollection, showToast }) {
@@ -1353,73 +1373,65 @@ function BrowsePage({ allCollections, onAddToCollection, showToast }) {
   const [pickModal, setPickModal] = useState(null);
   const [zoomCard, setZoomCard] = useState(null);
   const [browseSelected, setBrowseSelected] = useState(new Set());
+  const [browseSelMode, setBrowseSelMode] = useState(false);
 
   useEffect(() => {
     // Return immediately if already cached
     if (_seriesCache) { setSeries(_seriesCache); setLoading(false); return; }
 
-    // /series returns objects WITHOUT their sets list — so we fetch /sets
-    // and group them by serie ourselves.
-    fetch(`${TCGDEX}/sets`)
-      .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
-      .then(data => {
-        if (!Array.isArray(data) || data.length === 0) throw new Error('empty');
-
-        // Build a map serieId -> { id, name, logo, sets[] }
-        const map = new Map();
-        // Sort sets by releaseDate ascending so they appear in order within each serie
-        const sorted = [...data].sort((a, b) =>
-          (a.releaseDate || '').localeCompare(b.releaseDate || ''));
-
-        sorted.forEach(set => {
-          const sid  = set.serie?.id   || 'other';
-          const sname = set.serie?.name || 'Autres';
-          const slogo = set.serie?.logo || null;
-          if (!map.has(sid)) map.set(sid, { id: sid, name: sname, logo: slogo, sets: [] });
-          map.get(sid).sets.push(set);
-        });
-
-        // Convert to array, newest series first (reverse release order)
-        // We take the latest releaseDate of each serie's sets to sort series
-        const grouped = [...map.values()].sort((a, b) => {
+    // Strategy: fetch /series first (has names+logos), then /sets (has cards+dates).
+    // Cross-reference by serie.id so every set ends up in the right named group.
+    const buildGroups = (seriesArr, setsArr) => {
+      // Build lookup: serieId -> { id, name, logo }
+      const seriesMeta = new Map(
+        seriesArr.map(s => [s.id, { id: s.id, name: s.name || s.id, logo: s.logo || null }])
+      );
+      const map = new Map();
+      const sortedSets = [...setsArr].sort((a, b) =>
+        (a.releaseDate || '').localeCompare(b.releaseDate || ''));
+      sortedSets.forEach(set => {
+        const sid = set.serie?.id || 'other';
+        const meta = seriesMeta.get(sid) || { id: sid, name: sid === 'other' ? 'Autres' : sid, logo: null };
+        if (!map.has(sid)) map.set(sid, { ...meta, sets: [] });
+        map.get(sid).sets.push(set);
+      });
+      return [...map.values()]
+        .filter(s => s.sets.length > 0)
+        .sort((a, b) => {
           const la = a.sets[a.sets.length - 1]?.releaseDate || '';
           const lb = b.sets[b.sets.length - 1]?.releaseDate || '';
-          return lb.localeCompare(la);   // newest serie first
+          return lb.localeCompare(la);
         });
+    };
 
+    Promise.all([
+      fetch(`${TCGDEX}/series`).then(r => r.ok ? r.json() : []).catch(() => []),
+      fetch(`${TCGDEX}/sets`).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }),
+    ])
+      .then(([seriesData, setsData]) => {
+        if (!Array.isArray(setsData) || setsData.length === 0) throw new Error('empty');
+        const grouped = buildGroups(Array.isArray(seriesData) ? seriesData : [], setsData);
         _seriesCache = grouped;
         setSeries(grouped);
         setLoading(false);
       })
       .catch(err => {
-        console.error('TCGdex /sets error:', err);
-        // Fallback: try English endpoint
-        fetch('https://api.tcgdex.net/v2/en/sets')
-          .then(r => r.json())
-          .then(data => {
-            if (!Array.isArray(data)) throw new Error('bad');
-            const sorted = [...data].sort((a, b) => (b.releaseDate || '').localeCompare(a.releaseDate || ''));
-            const map = new Map();
-            sorted.forEach(set => {
-              const sid = set.serie?.id || 'other';
-              const sname = set.serie?.name || 'Autres';
-              const slogo = set.serie?.logo || null;
-              if (!map.has(sid)) map.set(sid, { id: sid, name: sname, logo: slogo, sets: [] });
-              map.get(sid).sets.push(set);
-            });
-            const grouped = [...map.values()].sort((a, b) => {
-              const la = a.sets[0]?.releaseDate || '';
-              const lb = b.sets[0]?.releaseDate || '';
-              return lb.localeCompare(la);
-            });
-            setSeries(grouped.filter(s => s.sets.length > 0));
+        console.error('TCGdex FR error, trying EN:', err);
+        Promise.all([
+          fetch('https://api.tcgdex.net/v2/en/series').then(r => r.ok ? r.json() : []).catch(() => []),
+          fetch('https://api.tcgdex.net/v2/en/sets').then(r => r.json()),
+        ])
+          .then(([seriesData, setsData]) => {
+            const grouped = buildGroups(Array.isArray(seriesData) ? seriesData : [], setsData);
+            _seriesCache = grouped;
+            setSeries(grouped);
           })
           .catch(() => {})
           .finally(() => setLoading(false));
       });
   }, []);
 
-  useEffect(() => { setBrowseSelected(new Set()); }, [selSet]);
+  useEffect(() => { setBrowseSelected(new Set()); setBrowseSelMode(false); }, [selSet]);
 
   const loadSet = async s => {
     setSelSet(s); setLoadingC(true); setSetCards([]);
@@ -1485,19 +1497,20 @@ function BrowsePage({ allCollections, onAddToCollection, showToast }) {
           )}
         </div>
         {selSet && (
-          <div style={{ display:'flex', alignItems:'center', gap:10, flexWrap:'wrap' }}>
-            <span style={{ fontSize: '.78rem', color: 'var(--muted)' }}>{setCards.length} cartes · {selSet.name}</span>
-            {setCards.length > 0 && <>
-              <button className="btn btn-ghost btn-sm"
-                onClick={() => setBrowseSelected(new Set(setCards.map(c => c.id)))}>
-                ☑ Tout sélectionner
+          <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
+            <span style={{ fontSize: '.78rem', color: 'var(--muted)', marginRight:4 }}>
+              {setCards.length} cartes · {selSet.name}
+            </span>
+            {setCards.length > 0 && (
+              <button
+                className={`btn btn-sm${browseSelMode ? ' btn-red' : ' btn-outline-accent'}`}
+                onClick={() => { setBrowseSelMode(v => !v); if (browseSelMode) setBrowseSelected(new Set()); }}>
+                {browseSelMode ? '✕ Quitter sélection' : '☑ Sélectionner'}
               </button>
-              {browseSelected.size > 0 && (
-                <button className="btn btn-ghost btn-sm"
-                  onClick={() => setBrowseSelected(new Set())}>
-                  ☐ Désélectionner
-                </button>
-              )}
+            )}
+            {browseSelMode && <>
+              <button className="btn btn-sel-util btn-sm" onClick={() => setBrowseSelected(new Set(setCards.map(c => c.id)))}>Tout</button>
+              <button className="btn btn-sel-util btn-sm" onClick={() => setBrowseSelected(new Set())}>Aucun</button>
             </>}
           </div>
         )}
@@ -1538,14 +1551,14 @@ function BrowsePage({ allCollections, onAddToCollection, showToast }) {
           </div>
       ) : loadingC
         ? <div className="spinner-wrap" style={{ padding: 40 }}><div className="spinner" />Chargement des cartes…</div>
-        : <div className={`browse-grid${browseSelected.size > 0 ? ' sel-active' : ''}`}>
+        : <div className={`browse-grid${browseSelMode ? ' sel-active' : ''}`}>
           {setCards.map((c, i) => {
             const inCol = inAny(c.id);
             const isSel = browseSelected.has(c.id);
             return (
               <div key={c.id} className={`browse-card${isSel ? ' sel' : ''}`}
                 style={{ animationDelay: `${Math.min(i * .016, .4)}s` }}
-                onClick={() => setZoomCard({ ...c, series: selSet?.name })}>
+                onClick={() => browseSelMode ? toggleBrowseSel(c.id) : setZoomCard({ ...c, series: selSet?.name })}>
                 <div className="card-img-box" style={{ position:'relative' }}>
                   {c.image
                     ? <img className="card-img" src={`${c.image}/high.webp`} alt={c.name} loading="lazy" style={{ filter: 'none' }} />
