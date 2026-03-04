@@ -1358,9 +1358,11 @@ function BinderView({ cards, collectionId, onZoom, onToggle, onEdit, onDelete, o
 // Module-level caches — survive BrowsePage unmount/remount
 let _seriesCache = null;          // Grouped series (fetched once per session)
 const _rarityCache = new Map();   // cardId → rarity string
-// Force fresh fetch if this is the broken "all-in-other" version
-if (_seriesCache && _seriesCache.length === 1 && _seriesCache[0]?.id === 'other') {
-  _seriesCache = null;
+// Invalidate stale cache: raw id names (e.g. "sv","swsh") mean the previous
+// fetch didn't resolve proper series names — force a fresh fetch.
+if (_seriesCache) {
+  const RAW = new Set(['sv','swsh','sm','xy','bw','pl','dp','ex','neo','gym','base','other','hgss']);
+  if (_seriesCache.some(s => RAW.has(s.name))) _seriesCache = null;
 }
 
 // ─── BROWSE PAGE ──────────────────────────────────────────────────────────────
@@ -1376,59 +1378,57 @@ function BrowsePage({ allCollections, onAddToCollection, showToast }) {
   const [browseSelMode, setBrowseSelMode] = useState(false);
 
   useEffect(() => {
-    // Return immediately if already cached
     if (_seriesCache) { setSeries(_seriesCache); setLoading(false); return; }
 
-    // Strategy: fetch /series first (has names+logos), then /sets (has cards+dates).
-    // Cross-reference by serie.id so every set ends up in the right named group.
-    const buildGroups = (seriesArr, setsArr) => {
-      // Build lookup: serieId -> { id, name, logo }
-      const seriesMeta = new Map(
-        seriesArr.map(s => [s.id, { id: s.id, name: s.name || s.id, logo: s.logo || null }])
+    // ── Strategy: use /series/{id} as the authoritative source ──────────
+    // GET /series  → [{id, name, logo}, ...]   (series list, no sets embedded)
+    // GET /series/{id} → {id, name, logo, sets:[{id,name,image,...}]}
+    // This way TCGdex itself does the grouping — no inference needed.
+    // We fetch all series details in parallel (typically ~12 series total).
+    const fetchAndBuild = async (base) => {
+      // Step 1: get the list of all series
+      const seriesList = await fetch(`${base}/series`)
+        .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); });
+      if (!Array.isArray(seriesList) || seriesList.length === 0) throw new Error('empty series');
+
+      // Step 2: fetch each series detail in parallel to get its sets
+      const details = await Promise.all(
+        seriesList.map(s =>
+          fetch(`${base}/series/${s.id}`)
+            .then(r => r.ok ? r.json() : null)
+            .catch(() => null)
+        )
       );
-      const map = new Map();
-      const sortedSets = [...setsArr].sort((a, b) =>
-        (a.releaseDate || '').localeCompare(b.releaseDate || ''));
-      sortedSets.forEach(set => {
-        const sid = set.serie?.id || 'other';
-        const meta = seriesMeta.get(sid) || { id: sid, name: sid === 'other' ? 'Autres' : sid, logo: null };
-        if (!map.has(sid)) map.set(sid, { ...meta, sets: [] });
-        map.get(sid).sets.push(set);
-      });
-      return [...map.values()]
-        .filter(s => s.sets.length > 0)
+
+      // Step 3: build grouped array — newest series first
+      const grouped = details
+        .filter(d => d?.sets?.length > 0)
+        .map(d => ({
+          id:   d.id,
+          name: d.name || d.id,
+          logo: d.logo || null,
+          sets: [...d.sets].sort((a, b) =>
+            (a.releaseDate || '').localeCompare(b.releaseDate || '')),
+        }))
         .sort((a, b) => {
+          // Sort by latest set release date in each series (newest series first)
           const la = a.sets[a.sets.length - 1]?.releaseDate || '';
           const lb = b.sets[b.sets.length - 1]?.releaseDate || '';
           return lb.localeCompare(la);
         });
+
+      if (grouped.length === 0) throw new Error('no grouped series');
+      return grouped;
     };
 
-    Promise.all([
-      fetch(`${TCGDEX}/series`).then(r => r.ok ? r.json() : []).catch(() => []),
-      fetch(`${TCGDEX}/sets`).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }),
-    ])
-      .then(([seriesData, setsData]) => {
-        if (!Array.isArray(setsData) || setsData.length === 0) throw new Error('empty');
-        const grouped = buildGroups(Array.isArray(seriesData) ? seriesData : [], setsData);
-        _seriesCache = grouped;
-        setSeries(grouped);
-        setLoading(false);
-      })
-      .catch(err => {
-        console.error('TCGdex FR error, trying EN:', err);
-        Promise.all([
-          fetch('https://api.tcgdex.net/v2/en/series').then(r => r.ok ? r.json() : []).catch(() => []),
-          fetch('https://api.tcgdex.net/v2/en/sets').then(r => r.json()),
-        ])
-          .then(([seriesData, setsData]) => {
-            const grouped = buildGroups(Array.isArray(seriesData) ? seriesData : [], setsData);
-            _seriesCache = grouped;
-            setSeries(grouped);
-          })
+    fetchAndBuild(TCGDEX)
+      .then(grouped => { _seriesCache = grouped; setSeries(grouped); setLoading(false); })
+      .catch(() =>
+        fetchAndBuild('https://api.tcgdex.net/v2/en')
+          .then(grouped => { _seriesCache = grouped; setSeries(grouped); })
           .catch(() => {})
-          .finally(() => setLoading(false));
-      });
+          .finally(() => setLoading(false))
+      );
   }, []);
 
   useEffect(() => { setBrowseSelected(new Set()); setBrowseSelMode(false); }, [selSet]);
