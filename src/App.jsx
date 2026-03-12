@@ -288,6 +288,33 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 
 /* ── BROWSE ── */
 .browse-scroll{flex:1;overflow-y:auto;padding-bottom:80px}
+
+/* Mode tabs */
+.browse-mode-tabs{display:flex;background:var(--surface2);border:1px solid var(--border);
+  border-radius:10px;padding:3px;gap:2px;flex-shrink:0;}
+.browse-tab{border:none;background:transparent;color:var(--muted);cursor:pointer;
+  border-radius:8px;padding:6px 14px;font-size:.74rem;font-weight:600;font-family:'Outfit',sans-serif;
+  transition:all .15s;white-space:nowrap;}
+.browse-tab:hover{color:var(--text);background:rgba(255,255,255,.05);}
+.browse-tab.active{background:var(--red2);color:#fff;box-shadow:0 2px 8px rgba(200,40,40,.35);}
+
+/* Search bar */
+.browse-searchbar{padding:0 28px 10px;flex-shrink:0;}
+.browse-search-wrap{position:relative;display:flex;align-items:center;
+  background:var(--surface2);border:1.5px solid var(--border2);border-radius:12px;
+  transition:border-color .15s;}
+.browse-search-wrap:focus-within{border-color:var(--red2);box-shadow:0 0 0 3px rgba(200,40,40,.12);}
+.browse-search-icon{padding:0 12px;font-size:1rem;pointer-events:none;opacity:.5;}
+.browse-search-input{flex:1;background:transparent;border:none;outline:none;
+  color:var(--text);font-family:'Outfit',sans-serif;font-size:.88rem;padding:12px 0;
+  caret-color:var(--red2);}
+.browse-search-input::placeholder{color:var(--muted);}
+.browse-search-clear{background:none;border:none;color:var(--muted);cursor:pointer;
+  padding:0 14px;font-size:1rem;transition:color .12s;}
+.browse-search-clear:hover{color:var(--text);}
+.browse-search-meta{margin-top:6px;font-size:.68rem;color:var(--muted);padding-left:4px;}
+
+@media(max-width:768px){.browse-searchbar{padding:0 14px 10px;}}
 .serie-section{margin-bottom:28px}
 .serie-header{display:flex;align-items:center;gap:12px;padding:0 28px;margin-bottom:12px}
 .serie-header-logo{height:28px;max-width:120px;object-fit:contain;
@@ -1356,13 +1383,56 @@ function BinderView({ cards, collectionId, onZoom, onToggle, onEdit, onDelete, o
 }
 
 // Module-level caches — survive BrowsePage unmount/remount
-let _seriesCache = null;          // Grouped series (fetched once per session)
-const _rarityCache = new Map();   // cardId → rarity string
+let _seriesCache = null;              // Grouped series (fetched once per session)
+const _rarityCache = new Map();       // cardId → rarity string
+const _searchCache = new Map();       // query string → search results array
 // Invalidate stale cache: raw id names (e.g. "sv","swsh") mean the previous
 // fetch didn't resolve proper series names — force a fresh fetch.
 if (_seriesCache) {
   const RAW = new Set(['sv','swsh','sm','xy','bw','pl','dp','ex','neo','gym','base','other','hgss']);
   if (_seriesCache.some(s => RAW.has(s.name))) _seriesCache = null;
+}
+
+// ─── BROWSE CARD GRID (shared between sets view + search view) ───────────────
+function BrowseCardGrid({ cards, selMode, selected, onToggleSel, onZoom, onAdd, inAny, showSet }) {
+  if (!cards.length) return null;
+  return (
+    <div className={`browse-grid${selMode ? ' sel-active' : ''}`}>
+      {cards.map((c, i) => {
+        const inCol = inAny(c.id);
+        const isSel = selected.has(c.id);
+        return (
+          <div key={`${c.id}-${i}`} className={`browse-card${isSel ? ' sel' : ''}`}
+            style={{ animationDelay: `${Math.min(i * .014, .35)}s` }}
+            onClick={() => selMode ? onToggleSel(c.id) : onZoom(c)}>
+            <div className="card-img-box" style={{ position:'relative' }}>
+              {c.image
+                ? <img className="card-img" src={`${c.image}/high.webp`} alt={c.name} loading="lazy" style={{ filter:'none' }} />
+                : <div style={{ width:'100%', height:'100%', background:'var(--surface2)' }} />
+              }
+              <div className="browse-hover-overlay" />
+              {inCol && <div className="browse-in-col" title="Dans une collection">✓</div>}
+              <div className="browse-chk" style={{ pointerEvents:'all' }}
+                onClick={e => { e.stopPropagation(); onToggleSel(c.id); }} />
+              <button className="browse-add-btn" onClick={e => { e.stopPropagation(); onAdd([c]); }}>
+                <div className="browse-add-inner">＋ Ajouter</div>
+              </button>
+            </div>
+            <div className="card-foot">
+              <div className="card-name">{c.name || c.id}</div>
+              <div className="card-meta">
+                {showSet && c.set?.name
+                  ? <span style={{ color:'var(--text2)', fontWeight:600 }}>{c.set.name}</span>
+                  : c.localId || ''
+                }
+                {c.rarity && <><br /><span className="card-rarity" style={{ color: rarityColor(c.rarity) }}>{c.rarity}</span></>}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 // ─── BROWSE PAGE ──────────────────────────────────────────────────────────────
@@ -1376,6 +1446,13 @@ function BrowsePage({ allCollections, onAddToCollection, showToast }) {
   const [zoomCard, setZoomCard] = useState(null);
   const [browseSelected, setBrowseSelected] = useState(new Set());
   const [browseSelMode, setBrowseSelMode] = useState(false);
+  // Search mode
+  const [browseMode, setBrowseMode] = useState('sets'); // 'sets' | 'search'
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchState, setSearchState] = useState('idle'); // idle|loading|done|error
+  const searchAbort = useRef(null);
+  const searchTimer = useRef(null);
 
   useEffect(() => {
     if (_seriesCache) { setSeries(_seriesCache); setLoading(false); return; }
@@ -1432,6 +1509,51 @@ function BrowsePage({ allCollections, onAddToCollection, showToast }) {
   }, []);
 
   useEffect(() => { setBrowseSelected(new Set()); setBrowseSelMode(false); }, [selSet]);
+  // Reset search results when leaving search mode
+  useEffect(() => {
+    if (browseMode !== 'search') {
+      setSearchQuery(''); setSearchResults([]); setSearchState('idle');
+      clearTimeout(searchTimer.current);
+      if (searchAbort.current) { searchAbort.current.abort(); searchAbort.current = null; }
+    }
+  }, [browseMode]);
+
+  // ── Search by name ───────────────────────────────────────────────────────
+  const handleSearchInput = (q) => {
+    setSearchQuery(q);
+    clearTimeout(searchTimer.current);
+    if (searchAbort.current) { searchAbort.current.abort(); searchAbort.current = null; }
+    if (q.trim().length < 2) { setSearchResults([]); setSearchState('idle'); return; }
+
+    // Check session cache first
+    const cacheKey = q.trim().toLowerCase();
+    if (_searchCache.has(cacheKey)) {
+      setSearchResults(_searchCache.get(cacheKey));
+      setSearchState('done');
+      return;
+    }
+
+    setSearchState('loading');
+    searchTimer.current = setTimeout(async () => {
+      const ctrl = new AbortController();
+      searchAbort.current = ctrl;
+      try {
+        const r = await fetch(
+          `${TCGDEX}/cards?name=${encodeURIComponent(q.trim())}`,
+          { signal: ctrl.signal }
+        );
+        if (!r.ok) throw new Error(r.status);
+        const data = await r.json();
+        // API returns array of card summaries: [{id, localId, name, image, set:{id,name}}]
+        const results = Array.isArray(data) ? data : [];
+        _searchCache.set(cacheKey, results);
+        setSearchResults(results);
+        setSearchState('done');
+      } catch (e) {
+        if (e.name !== 'AbortError') setSearchState('error');
+      }
+    }, 450);
+  };
 
   const loadSet = async s => {
     setSelSet(s); setLoadingC(true); setSetCards([]);
@@ -1482,45 +1604,93 @@ function BrowsePage({ allCollections, onAddToCollection, showToast }) {
     setBrowseSelected(new Set()); setPickModal(null);
   };
 
-  const selectedCardsData = setCards.filter(c => browseSelected.has(c.id));
+  // Active card list depends on current mode
+  const activeCards = browseMode === 'search' ? searchResults : setCards;
+  const selectedCardsData = activeCards.filter(c => browseSelected.has(c.id));
+
+  // Determine selection toolbar cards list and label
+  const selToolbarCount = browseMode === 'search'
+    ? searchResults.length
+    : setCards.length;
+  const showSelToolbar = browseMode === 'search'
+    ? searchState === 'done' && searchResults.length > 0
+    : !!selSet && setCards.length > 0;
 
   return (
     <div className="page-wrap">
       <div className="page-hdr">
         <div>
           <div className="page-title">Parcourir les <span>Extensions</span></div>
-          {selSet && (
+          {selSet && browseMode === 'sets' && (
             <button className="btn btn-ghost btn-sm" style={{ marginTop: 6 }}
               onClick={() => { setSelSet(null); setSetCards([]); }}>
               ← Toutes les extensions
             </button>
           )}
         </div>
-        {selSet && (
-          <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
-            <span style={{ fontSize: '.78rem', color: 'var(--muted)', marginRight:4 }}>
-              {setCards.length} cartes · {selSet.name}
-            </span>
-            {setCards.length > 0 && (
-              <button
-                className={`btn btn-sm${browseSelMode ? ' btn-red' : ' btn-outline-accent'}`}
-                onClick={() => { setBrowseSelMode(v => !v); if (browseSelMode) setBrowseSelected(new Set()); }}>
-                {browseSelMode ? '✕ Quitter sélection' : '☑ Sélectionner'}
-              </button>
-            )}
-            {browseSelMode && <>
-              <button className="btn btn-sel-util btn-sm" onClick={() => setBrowseSelected(new Set(setCards.map(c => c.id)))}>Tout</button>
-              <button className="btn btn-sel-util btn-sm" onClick={() => setBrowseSelected(new Set())}>Aucun</button>
-            </>}
+        {/* Mode tabs + selection toolbar */}
+        <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
+          {/* Mode toggle */}
+          <div className="browse-mode-tabs">
+            <button className={`browse-tab${browseMode === 'sets' ? ' active' : ''}`}
+              onClick={() => { setBrowseMode('sets'); setBrowseSelected(new Set()); setBrowseSelMode(false); }}>
+              📦 Extensions
+            </button>
+            <button className={`browse-tab${browseMode === 'search' ? ' active' : ''}`}
+              onClick={() => { setBrowseMode('search'); setBrowseSelected(new Set()); setBrowseSelMode(false); }}>
+              🔍 Rechercher
+            </button>
           </div>
-        )}
+          {/* Selection toolbar — shown in both modes when there are cards */}
+          {showSelToolbar && <>
+            <button
+              className={`btn btn-sm${browseSelMode ? ' btn-red' : ' btn-outline-accent'}`}
+              onClick={() => { setBrowseSelMode(v => !v); if (browseSelMode) setBrowseSelected(new Set()); }}>
+              {browseSelMode ? '✕ Quitter sélection' : '☑ Sélectionner'}
+            </button>
+            {browseSelMode && <>
+              <button className="btn btn-sel-util btn-sm"
+                onClick={() => setBrowseSelected(new Set(activeCards.map(c => c.id)))}>Tout</button>
+              <button className="btn btn-sel-util btn-sm"
+                onClick={() => setBrowseSelected(new Set())}>Aucun</button>
+            </>}
+          </>}
+        </div>
       </div>
 
-      {!selSet ? (
+      {/* Search bar — only in search mode */}
+      {browseMode === 'search' && (
+        <div className="browse-searchbar">
+          <div className="browse-search-wrap">
+            <span className="browse-search-icon">🔍</span>
+            <input
+              className="browse-search-input"
+              type="text"
+              placeholder="Nom de la carte (ex: Dracaufeu, Pikachu…)"
+              value={searchQuery}
+              autoFocus
+              onChange={e => { handleSearchInput(e.target.value); setBrowseSelected(new Set()); setBrowseSelMode(false); }}
+            />
+            {searchQuery && (
+              <button className="browse-search-clear" onClick={() => { handleSearchInput(''); setBrowseSelected(new Set()); }}>✕</button>
+            )}
+          </div>
+          {searchState === 'done' && (
+            <div className="browse-search-meta">
+              {searchResults.length > 0
+                ? `${searchResults.length} carte${searchResults.length > 1 ? 's' : ''} trouvée${searchResults.length > 1 ? 's' : ''}`
+                : 'Aucune carte trouvée'}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── SETS MODE ─────────────────────────────────────────────────────── */}
+      {browseMode === 'sets' && (!selSet ? (
         loading
           ? <div className="spinner-wrap" style={{ padding: 40 }}><div className="spinner" />Chargement des séries…</div>
           : series.length === 0
-          ? <div className="empty"><span className="empty-icon">📦</span><h3>Aucune extension disponible</h3><p>Vérifiez votre connexion internet — données via api.tcgdex.net</p><button className="btn btn-sm btn-red" style={{marginTop:14}} onClick={()=>window.location.reload()}>🔄 Réessayer</button></div>
+          ? <div className="empty"><span className="empty-icon">📦</span><h3>Aucune extension disponible</h3><p>Vérifiez votre connexion internet</p><button className="btn btn-sm btn-red" style={{marginTop:14}} onClick={()=>window.location.reload()}>🔄 Réessayer</button></div>
           : <div className="browse-scroll">
             {series.map(serie => (
               <div key={serie.id} className="serie-section">
@@ -1551,49 +1721,36 @@ function BrowsePage({ allCollections, onAddToCollection, showToast }) {
           </div>
       ) : loadingC
         ? <div className="spinner-wrap" style={{ padding: 40 }}><div className="spinner" />Chargement des cartes…</div>
-        : <div className={`browse-grid${browseSelMode ? ' sel-active' : ''}`}>
-          {setCards.map((c, i) => {
-            const inCol = inAny(c.id);
-            const isSel = browseSelected.has(c.id);
-            return (
-              <div key={c.id} className={`browse-card${isSel ? ' sel' : ''}`}
-                style={{ animationDelay: `${Math.min(i * .016, .4)}s` }}
-                onClick={() => browseSelMode ? toggleBrowseSel(c.id) : setZoomCard({ ...c, series: selSet?.name })}>
-                <div className="card-img-box" style={{ position:'relative' }}>
-                  {c.image
-                    ? <img className="card-img" src={`${c.image}/high.webp`} alt={c.name} loading="lazy" style={{ filter: 'none' }} />
-                    : <div style={{ width: '100%', height: '100%', background: 'var(--surface2)' }} />
-                  }
-                  {/* overlay gradient - purely visual, no pointer events */}
-                  <div className="browse-hover-overlay" />
-                  {/* ✓ badge */}
-                  {inCol && <div className="browse-in-col" title="Dans une collection">✓</div>}
-                  {/* Checkbox multi-sélection */}
-                  <div className="browse-chk" style={{ pointerEvents: 'all' }}
-                    onClick={e => { e.stopPropagation(); toggleBrowseSel(c.id); }} />
-                  {/* Bouton Ajouter - seulement la pill est clickable */}
-                  <button className="browse-add-btn" onClick={e => { e.stopPropagation(); handleAdd([c]); }}>
-                    <div className="browse-add-inner">＋ Ajouter</div>
-                  </button>
-                </div>
-                <div className="card-foot">
-                  <div className="card-name">{c.name || c.id}</div>
-                  <div className="card-meta">
-                    {c.localId}
-                    {c.rarity && <><br /><span className="card-rarity" style={{ color: rarityColor(c.rarity) }}>{c.rarity}</span></>}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      }
+        : <BrowseCardGrid cards={setCards} selMode={browseSelMode} selected={browseSelected}
+            onToggleSel={toggleBrowseSel} onZoom={c => setZoomCard({ ...c, series: selSet?.name })}
+            onAdd={handleAdd} inAny={inAny} />
+      )}
+
+      {/* ── SEARCH MODE ───────────────────────────────────────────────────── */}
+      {browseMode === 'search' && (
+        searchState === 'idle' && !searchQuery
+          ? <div className="empty" style={{ marginTop: 40 }}>
+              <span className="empty-icon">🔍</span>
+              <h3>Rechercher une carte</h3>
+              <p>Tapez au moins 2 caractères pour lancer la recherche.</p>
+            </div>
+          : searchState === 'loading'
+          ? <div className="spinner-wrap" style={{ padding: 40 }}><div className="spinner" />Recherche en cours…</div>
+          : searchState === 'error'
+          ? <div className="empty"><span className="empty-icon">⚠️</span><h3>Erreur de connexion</h3><p>Impossible de contacter l'API TCGdex.</p></div>
+          : searchState === 'done' && searchResults.length === 0
+          ? <div className="empty"><span className="empty-icon">🃏</span><h3>Aucun résultat</h3><p>Aucune carte ne correspond à « {searchQuery} ».</p></div>
+          : <BrowseCardGrid cards={searchResults} selMode={browseSelMode} selected={browseSelected}
+              onToggleSel={toggleBrowseSel}
+              onZoom={c => setZoomCard({ ...c, series: c.set?.name })}
+              onAdd={handleAdd} inAny={inAny} showSet />
+      )}
 
       {/* Bulk add bar */}
       <div className={`bulk-bar${browseSelected.size > 0 ? ' show' : ''}`}>
         <span className="bulk-count">{browseSelected.size} sélectionnée{browseSelected.size > 1 ? 's' : ''}</span>
         <button className="btn btn-red btn-sm" onClick={() => handleAdd(selectedCardsData)}>＋ Ajouter à la collection</button>
-        <button className="btn btn-ghost btn-sm" onClick={() => setBrowseSelected(new Set())}>Annuler</button>
+        <button className="btn btn-ghost btn-sm" onClick={() => { setBrowseSelected(new Set()); setBrowseSelMode(false); }}>Annuler</button>
       </div>
 
       <ZoomModal card={zoomCard} onClose={() => setZoomCard(null)} />
